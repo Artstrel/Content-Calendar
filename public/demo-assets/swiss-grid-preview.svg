@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <rect width="1080" height="1080" fill="#000000"/>
+  <line x1="80" y1="80" x2="1000" y2="80" stroke="#ffffff" stroke-width="2"/>
+  <line x1="80" y1="1000" x2="1000" y2="1000" stroke="#ffffff" stroke-width="2"/>
+  <line x1="80" y1="80" x2="80" y2="1000" stroke="#ffffff" stroke-width="2"/>
+  <line x1="1000" y1="80" x2="1000" y2="1000" stroke="#ffffff" stroke-width="2"/>
+  <line x1="80" y1="240" x2="1000" y2="240" stroke="#333333" stroke-width="1"/>
+  <line x1="540" y1="240" x2="540" y2="1000" stroke="#333333" stroke-width="1"/>
+  <text x="120" y="180" fill="#ffffff" font-family="'Inter', sans-serif" font-weight="900" font-size="44" letter-spacing="4">SWISS // JUNIOR</text>
+  <text x="760" y="180" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="20">JOB HUNT 2026</text>
+  <text x="120" y="380" fill="#ffffff" font-family="'Inter', sans-serif" font-weight="800" font-size="76" line-height="1.1">
+    <tspan x="120" dy="0">РЕДИЗАЙН</tspan>
+    <tspan x="120" dy="88">ИЗ ОШИБКИ</tspan>
+    <tspan x="120" dy="88">В КЕЙС</tspan>
+  </text>
+  <text x="580" y="440" fill="#bbbbbb" font-family="'Inter', sans-serif" font-size="24">
+    <tspan x="580" dy="0">Показываем процесс мышления</tspan>
+    <tspan x="580" dy="36">начинающего дизайнера.</tspan>
+    <tspan x="580" dy="36">Модульная сетка 8px вместо</tspan>
+    <tspan x="580" dy="36">случайных отступов.</tspan>
+  </text>
+  <rect x="120" y="860" width="220" height="60" fill="#ffffff"/>
+  <text x="145" y="900" fill="#000000" font-family="'JetBrains Mono', monospace" font-weight="700" font-size="20">VIEW FIGMA FILE</text>
+</svg>
