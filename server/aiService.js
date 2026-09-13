@@ -547,3 +547,202 @@ export async function testOpenRouterPing(apiKey, model = 'google/gemma-4-31b-it:
     };
   }
 }
+
+export const GEMINI_CASCADE_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-pro-preview'
+];
+
+export const OPENROUTER_FREE_CASCADE_MODELS = [
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'nex-agi/nex-n2.5-pro:free',
+  'nex-agi/nex-n2.5-mini:free',
+  'thinkingmachines/inkling:free',
+  'inclusionai/ling-3.0-flash-vl:free',
+  'dots-studio/dots-3-note-preview:free',
+  'poolside/laguna-xs-2.1:free',
+  'openrouter/free'
+];
+
+/**
+ * Builds the prioritized queue of AI models for automatic cascade failover.
+ * If user has a preferredModel, it goes FIRST.
+ * If that model fails, remaining models in the same provider and then fallback provider are tried in order.
+ */
+export function buildCascadeCandidateQueue({
+  preferredModel,
+  geminiApiKey,
+  openRouterApiKey,
+  aiProviderMode = 'cascade'
+}) {
+  const hasGemini = Boolean(geminiApiKey && geminiApiKey.trim() !== '');
+  const hasOpenRouter = Boolean(openRouterApiKey && openRouterApiKey.trim() !== '');
+  const allowGemini = hasGemini && aiProviderMode !== 'openrouter_only';
+  const allowOpenRouter = hasOpenRouter && aiProviderMode !== 'gemini_only';
+
+  const candidates = [];
+  const addedModels = new Set();
+
+  const addCandidate = (provider, model) => {
+    if (!model || addedModels.has(model)) return;
+    if (provider === 'gemini' && !allowGemini) return;
+    if (provider === 'openrouter' && !allowOpenRouter) return;
+    addedModels.add(model);
+    candidates.push({ provider, model });
+  };
+
+  // 1. Preferred model FIRST if set
+  if (preferredModel) {
+    const isGeminiModel = preferredModel.includes('gemini');
+    if (isGeminiModel && allowGemini) {
+      addCandidate('gemini', preferredModel);
+    } else if (!isGeminiModel && allowOpenRouter) {
+      addCandidate('openrouter', preferredModel);
+    }
+  }
+
+  // 2. If the first candidate was an OpenRouter model, prioritize remaining OpenRouter models, then Gemini
+  const firstIsOR = candidates.length > 0 && candidates[0].provider === 'openrouter';
+
+  if (firstIsOR) {
+    for (const m of OPENROUTER_FREE_CASCADE_MODELS) {
+      addCandidate('openrouter', m);
+    }
+    for (const m of GEMINI_CASCADE_MODELS) {
+      addCandidate('gemini', m);
+    }
+  } else {
+    for (const m of GEMINI_CASCADE_MODELS) {
+      addCandidate('gemini', m);
+    }
+    for (const m of OPENROUTER_FREE_CASCADE_MODELS) {
+      addCandidate('openrouter', m);
+    }
+  }
+
+  return candidates;
+}
+
+/**
+ * Executes an AI generation task across the full pool of available models.
+ * If the preferred model fails (rate limit, quota 429, timeout, parse error, 503),
+ * it iterates through all other models until one succeeds.
+ */
+export async function executeCascadeGeneration({
+  systemPrompt,
+  userPrompt,
+  parser = robustExtractJson,
+  preferredModel,
+  geminiApiKey,
+  openRouterApiKey,
+  aiProviderMode = 'cascade',
+  onLog
+}) {
+  const queue = buildCascadeCandidateQueue({
+    preferredModel,
+    geminiApiKey,
+    openRouterApiKey,
+    aiProviderMode
+  });
+
+  if (queue.length === 0) {
+    return {
+      ok: false,
+      status: 401,
+      error: 'Нет доступных моделей для генерации. Проверьте API-ключи Gemini и OpenRouter в настройках.',
+      attemptTrail: []
+    };
+  }
+
+  const attemptTrail = [];
+  let preferredErrorReason = '';
+
+  for (let i = 0; i < queue.length; i++) {
+    const candidate = queue[i];
+    const isPreferred = i === 0;
+
+    try {
+      let res;
+      if (candidate.provider === 'gemini') {
+        res = await callGemini({
+          apiKey: geminiApiKey,
+          model: candidate.model,
+          systemPrompt,
+          userPrompt,
+          timeoutMs: 14000,
+          parser
+        });
+      } else {
+        res = await callOpenRouter({
+          apiKey: openRouterApiKey,
+          model: candidate.model,
+          systemPrompt,
+          userPrompt,
+          timeoutMs: 20000,
+          parser
+        });
+      }
+
+      if (res.ok && res.data) {
+        const cascadeTriggered = i > 0;
+        let message = '';
+        if (cascadeTriggered) {
+          message = `⚡️ [АВТО-КАСКАД]: Модель ${queue[0].model} не ответила (${preferredErrorReason || 'ошибка/квота'}). Успешно получено через ${candidate.model} (${res.latencyMs}мс).`;
+        } else {
+          message = `Успешно выполнено через ${candidate.model} (${res.latencyMs}мс).`;
+        }
+
+        return {
+          ok: true,
+          data: res.data,
+          provider: candidate.provider,
+          modelUsed: candidate.model,
+          latencyMs: res.latencyMs,
+          tokens: res.tokens || 0,
+          generationId: res.generationId,
+          cascadeTriggered,
+          attemptTrail,
+          message
+        };
+      }
+
+      const reason = res.error || res.statusText || 'Error';
+      if (isPreferred) {
+        preferredErrorReason = res.isRateLimited ? 'Лимит 429' : reason;
+      }
+      attemptTrail.push({
+        provider: candidate.provider,
+        model: candidate.model,
+        status: res.status,
+        error: reason,
+        latencyMs: res.latencyMs
+      });
+      if (onLog) {
+        onLog(`[CASCADE FAILOVER] ${candidate.model} failed (${reason}). Trying next candidate...`);
+      }
+    } catch (err) {
+      attemptTrail.push({
+        provider: candidate.provider,
+        model: candidate.model,
+        status: 500,
+        error: err.message,
+        latencyMs: 0
+      });
+    }
+  }
+
+  return {
+    ok: false,
+    status: 500,
+    error: `Все опрошенные модели (${attemptTrail.length} шт.) вернули ошибку.`,
+    attemptTrail
+  };
+}

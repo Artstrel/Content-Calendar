@@ -316,7 +316,6 @@ export async function clientCallOpenRouter({
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        response_format: { type: 'json_object' },
         temperature: 0.7
       }),
       signal: controller.signal
@@ -357,7 +356,7 @@ export async function clientCallOpenRouter({
       statusText: 'OK',
       data: parsed,
       latencyMs,
-      modelUsed: model,
+      modelUsed: data.model || effectiveModel,
       tokens
     };
   } catch (err: any) {
@@ -449,37 +448,301 @@ export async function clientTestOpenRouterConnection(apiKey?: string, model?: st
   };
 }
 
+export const GEMINI_CASCADE_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-pro-preview'
+];
+
+export const OPENROUTER_FREE_CASCADE_MODELS = [
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'nex-agi/nex-n2.5-pro:free',
+  'nex-agi/nex-n2.5-mini:free',
+  'thinkingmachines/inkling:free',
+  'inclusionai/ling-3.0-flash-vl:free',
+  'dots-studio/dots-3-note-preview:free',
+  'poolside/laguna-xs-2.1:free',
+  'openrouter/free'
+];
+
+export function buildCascadeCandidateQueue({
+  preferredModel,
+  geminiApiKey,
+  openRouterApiKey,
+  aiProviderMode = 'cascade'
+}: {
+  preferredModel?: string;
+  geminiApiKey?: string;
+  openRouterApiKey?: string;
+  aiProviderMode?: 'cascade' | 'gemini_only' | 'openrouter_only';
+}) {
+  const hasGemini = Boolean(geminiApiKey && geminiApiKey.trim() !== '');
+  const hasOpenRouter = Boolean(openRouterApiKey && openRouterApiKey.trim() !== '');
+  const allowGemini = hasGemini && aiProviderMode !== 'openrouter_only';
+  const allowOpenRouter = hasOpenRouter && aiProviderMode !== 'gemini_only';
+
+  const candidates: Array<{ provider: 'gemini' | 'openrouter'; model: string }> = [];
+  const addedModels = new Set<string>();
+
+  const addCandidate = (provider: 'gemini' | 'openrouter', model: string) => {
+    if (!model || addedModels.has(model)) return;
+    if (provider === 'gemini' && !allowGemini) return;
+    if (provider === 'openrouter' && !allowOpenRouter) return;
+    addedModels.add(model);
+    candidates.push({ provider, model });
+  };
+
+  // 1. Preferred model FIRST
+  if (preferredModel) {
+    const isGemini = preferredModel.includes('gemini');
+    if (isGemini && allowGemini) {
+      addCandidate('gemini', preferredModel);
+    } else if (!isGemini && allowOpenRouter) {
+      addCandidate('openrouter', preferredModel);
+    }
+  }
+
+  // 2. If the first candidate was an OpenRouter model, prioritize remaining OpenRouter models, then Gemini
+  const firstIsOR = candidates.length > 0 && candidates[0].provider === 'openrouter';
+
+  if (firstIsOR) {
+    for (const m of OPENROUTER_FREE_CASCADE_MODELS) {
+      addCandidate('openrouter', m);
+    }
+    for (const m of GEMINI_CASCADE_MODELS) {
+      addCandidate('gemini', m);
+    }
+  } else {
+    for (const m of GEMINI_CASCADE_MODELS) {
+      addCandidate('gemini', m);
+    }
+    for (const m of OPENROUTER_FREE_CASCADE_MODELS) {
+      addCandidate('openrouter', m);
+    }
+  }
+
+  return candidates;
+}
+
+export async function clientExecuteCascadeGeneration({
+  systemPrompt,
+  userPrompt,
+  parser = robustExtractJson,
+  preferredModel,
+  geminiApiKey,
+  openRouterApiKey,
+  aiProviderMode = 'cascade'
+}: {
+  systemPrompt: string;
+  userPrompt: string;
+  parser?: (text: string) => any;
+  preferredModel?: string;
+  geminiApiKey?: string;
+  openRouterApiKey?: string;
+  aiProviderMode?: 'cascade' | 'gemini_only' | 'openrouter_only';
+}): Promise<{
+  ok: boolean;
+  data?: any;
+  provider?: 'gemini' | 'openrouter';
+  modelUsed?: string;
+  latencyMs: number;
+  tokens?: number;
+  generationId?: string | null;
+  cascadeTriggered: boolean;
+  message?: string;
+  error?: string;
+  attemptTrail: Array<{ provider: string; model: string; error?: string; latencyMs: number }>;
+}> {
+  const queue = buildCascadeCandidateQueue({
+    preferredModel,
+    geminiApiKey,
+    openRouterApiKey,
+    aiProviderMode
+  });
+
+  if (queue.length === 0) {
+    return {
+      ok: false,
+      latencyMs: 0,
+      cascadeTriggered: false,
+      error: 'Нет доступных моделей для генерации. Проверьте API-ключи Gemini и OpenRouter в настройках.',
+      attemptTrail: []
+    };
+  }
+
+  const attemptTrail: Array<{ provider: string; model: string; error?: string; latencyMs: number }> = [];
+  let preferredErrorReason = '';
+
+  for (let i = 0; i < queue.length; i++) {
+    const candidate = queue[i];
+    const isPreferred = i === 0;
+
+    try {
+      let res: any;
+      if (candidate.provider === 'gemini') {
+        res = await clientCallGemini({
+          apiKey: geminiApiKey!,
+          model: candidate.model,
+          systemPrompt,
+          userPrompt,
+          timeoutMs: 14000,
+          parser
+        });
+      } else {
+        res = await clientCallOpenRouter({
+          apiKey: openRouterApiKey!,
+          model: candidate.model,
+          systemPrompt,
+          userPrompt,
+          timeoutMs: 20000,
+          parser
+        });
+      }
+
+      if (res.ok && res.data) {
+        const cascadeTriggered = i > 0;
+        let message = '';
+        if (cascadeTriggered) {
+          message = `⚡️ [АВТО-КАСКАД]: Модель ${queue[0].model} не ответила (${preferredErrorReason || 'ошибка/квота'}). Успешно получено через ${candidate.model} (${res.latencyMs}мс).`;
+        } else {
+          message = `Успешно выполнено через ${candidate.model} (${res.latencyMs}мс).`;
+        }
+
+        return {
+          ok: true,
+          data: res.data,
+          provider: candidate.provider,
+          modelUsed: candidate.model,
+          latencyMs: res.latencyMs,
+          tokens: res.tokens || 0,
+          generationId: res.generationId || null,
+          cascadeTriggered,
+          attemptTrail,
+          message
+        };
+      }
+
+      const reason = res.error || res.statusText || 'Error';
+      if (isPreferred) {
+        preferredErrorReason = res.isRateLimited ? 'Лимит 429' : reason;
+      }
+      attemptTrail.push({
+        provider: candidate.provider,
+        model: candidate.model,
+        error: reason,
+        latencyMs: res.latencyMs
+      });
+    } catch (err: any) {
+      attemptTrail.push({
+        provider: candidate.provider,
+        model: candidate.model,
+        error: err.message,
+        latencyMs: 0
+      });
+    }
+  }
+
+  return {
+    ok: false,
+    latencyMs: 0,
+    cascadeTriggered: true,
+    error: `Все опрошенные модели (${attemptTrail.length} шт.) вернули ошибку.`,
+    attemptTrail
+  };
+}
+
 export async function clientTestCascadeConnection(params?: { geminiApiKey?: string; openRouterApiKey?: string }): Promise<AiTestConnectionResult> {
   const settings = readLocalSettings();
   const geminiKey = params?.geminiApiKey || settings.geminiApiKey;
   const openRouterKey = params?.openRouterApiKey || settings.openRouterApiKey;
 
+  let geminiRes: AiTestConnectionResult | null = null;
   if (geminiKey) {
-    const geminiRes = await clientTestGeminiConnection(geminiKey);
-    if (geminiRes.connected) {
-      return {
-        ...geminiRes,
-        message: `✨ Каскад готов: Google Gemini 3.8 Flash активен как основной провайдер (${geminiRes.latencyMs}ms)`
-      };
+    geminiRes = await clientTestGeminiConnection(geminiKey, 'gemini-3.8-flash');
+    if (!geminiRes.connected) {
+      for (const altModel of GEMINI_CASCADE_MODELS) {
+        if (altModel !== 'gemini-3.8-flash') {
+          const alt = await clientTestGeminiConnection(geminiKey, altModel);
+          if (alt.connected) {
+            geminiRes = {
+              ...alt,
+              message: `✓ Подключение к Google Gemini успешно (через ${altModel}, ${alt.latencyMs}мс)`
+            };
+            break;
+          }
+        }
+      }
     }
   }
 
+  let openRouterRes: AiTestConnectionResult | null = null;
   if (openRouterKey) {
-    const openRouterRes = await clientTestOpenRouterConnection(openRouterKey);
-    if (openRouterRes.connected) {
-      return {
-        ...openRouterRes,
-        message: `⚡️ Каскад готов: OpenRouter активен как резервный провайдер (${openRouterRes.latencyMs}ms)`
-      };
+    const preferredOrModel = (settings.defaultModel?.includes('/') && settings.defaultModel?.includes(':free'))
+      ? settings.defaultModel
+      : 'google/gemma-4-31b-it:free';
+    openRouterRes = await clientTestOpenRouterConnection(openRouterKey, preferredOrModel);
+    if (!openRouterRes.connected) {
+      for (const altModel of OPENROUTER_FREE_CASCADE_MODELS) {
+        if (altModel !== preferredOrModel) {
+          const alt = await clientTestOpenRouterConnection(openRouterKey, altModel);
+          if (alt.connected) {
+            openRouterRes = {
+              ...alt,
+              message: `✓ Подключение к OpenRouter успешно (через ${altModel}, ${alt.latencyMs}мс)`
+            };
+            break;
+          }
+        }
+      }
     }
+  }
+
+  const cascadeActive = Boolean(geminiRes?.connected || openRouterRes?.connected);
+  let summaryMessage = '';
+  if (geminiRes?.connected && openRouterRes?.connected) {
+    summaryMessage = `Каскад полностью готов: Google Gemini (${geminiRes.latencyMs}мс) и OpenRouter (${openRouterRes.latencyMs}мс) активны.`;
+  } else if (geminiRes?.connected) {
+    summaryMessage = `Google Gemini активен (${geminiRes.latencyMs}мс). OpenRouter резерв не подключен.`;
+  } else if (openRouterRes?.connected) {
+    summaryMessage = `OpenRouter активен (${openRouterRes.latencyMs}мс). Google Gemini не подключен или лимит исчерпан.`;
+  } else {
+    summaryMessage = 'Оба провайдера не ответили. Проверьте правильность API-ключей.';
   }
 
   return {
-    connected: false,
-    status: 401,
-    statusText: 'Keys Not Configured',
-    latencyMs: 0,
-    message: 'Ни один API-ключ не настроен. Добавьте ключ Gemini или OpenRouter в Настройках.'
+    connected: cascadeActive,
+    status: cascadeActive ? 200 : 400,
+    statusText: cascadeActive ? 'Cascade Ready' : 'No Providers Ready',
+    latencyMs: Math.max(geminiRes?.latencyMs || 0, openRouterRes?.latencyMs || 0),
+    message: summaryMessage,
+    gemini: geminiRes ? {
+      connected: geminiRes.connected,
+      status: geminiRes.status,
+      statusText: geminiRes.statusText,
+      latencyMs: geminiRes.latencyMs,
+      model: geminiRes.actualModel || geminiRes.modelRequested,
+      reply: geminiRes.reply,
+      error: geminiRes.error,
+      message: geminiRes.message
+    } : undefined,
+    openRouter: openRouterRes ? {
+      connected: openRouterRes.connected,
+      status: openRouterRes.status,
+      statusText: openRouterRes.statusText,
+      latencyMs: openRouterRes.latencyMs,
+      generationId: openRouterRes.generationId || undefined,
+      actualModel: openRouterRes.actualModel,
+      reply: openRouterRes.reply,
+      error: openRouterRes.error,
+      message: openRouterRes.message
+    } : undefined
   };
 }
 
@@ -513,66 +776,36 @@ export async function clientScanTrendsAI(category = 'all', model?: string): Prom
 
   const userPrompt = `Сгенерируй свежие виральные микро-тренды для категории: ${category}.`;
 
-  // 1. Try Gemini
-  if (geminiKey && (!settings.aiProviderMode || settings.aiProviderMode !== 'openrouter_only')) {
-    const geminiRes = await clientCallGemini({
-      apiKey: geminiKey,
-      model: requestedModel.includes('gemini') ? requestedModel : 'gemini-3.8-flash',
-      systemPrompt,
-      userPrompt,
-      parser: robustExtractTrendsJson
-    });
+  const cascadeRes = await clientExecuteCascadeGeneration({
+    systemPrompt,
+    userPrompt,
+    parser: robustExtractTrendsJson,
+    preferredModel: requestedModel,
+    geminiApiKey: geminiKey,
+    openRouterApiKey: openRouterKey,
+    aiProviderMode: settings.aiProviderMode
+  });
 
-    if (geminiRes.ok && Array.isArray(geminiRes.data)) {
-      return {
-        trends: geminiRes.data,
+  if (cascadeRes.ok && Array.isArray(cascadeRes.data) && cascadeRes.data.length > 0) {
+    return {
+      trends: cascadeRes.data,
+      live: true,
+      modelUsed: cascadeRes.modelUsed,
+      telemetry: {
+        status: 200,
+        statusText: 'OK',
+        latencyMs: cascadeRes.latencyMs,
+        tokens: cascadeRes.tokens,
+        provider: cascadeRes.provider,
+        model: cascadeRes.modelUsed || 'gemini-3.8-flash',
         live: true,
-        modelUsed: geminiRes.modelUsed,
-        telemetry: {
-          status: geminiRes.status,
-          statusText: geminiRes.statusText,
-          latencyMs: geminiRes.latencyMs,
-          tokens: geminiRes.tokens,
-          provider: 'gemini',
-          model: geminiRes.modelUsed || 'gemini-3.8-flash',
-          live: true
-        }
-      };
-    }
+        cascadeTriggered: cascadeRes.cascadeTriggered,
+        message: cascadeRes.message
+      }
+    };
   }
 
-  // 2. Try OpenRouter
-  if (openRouterKey && (!settings.aiProviderMode || settings.aiProviderMode !== 'gemini_only')) {
-    const openRouterModel = (requestedModel.includes('/') && requestedModel.includes(':free'))
-      ? requestedModel
-      : 'google/gemma-4-31b-it:free';
-    const orRes = await clientCallOpenRouter({
-      apiKey: openRouterKey,
-      model: openRouterModel,
-      systemPrompt,
-      userPrompt,
-      parser: robustExtractTrendsJson
-    });
-
-    if (orRes.ok && Array.isArray(orRes.data)) {
-      return {
-        trends: orRes.data,
-        live: true,
-        modelUsed: orRes.modelUsed,
-        telemetry: {
-          status: orRes.status,
-          statusText: orRes.statusText,
-          latencyMs: orRes.latencyMs,
-          tokens: orRes.tokens,
-          provider: 'openrouter',
-          model: orRes.modelUsed || 'openrouter/free',
-          live: true
-        }
-      };
-    }
-  }
-
-  // 3. Fallback to Local Swiss Generator
+  // Fallback to Local Swiss Generator
   return {
     trends: [
       {
@@ -600,6 +833,19 @@ export async function clientScanTrendsAI(category = 'all', model?: string): Prom
         keyTakeaway: 'Показывайте готовый результат в первой же секунде ролика, чтобы зацепить внимание зрителя.',
         suggestedFormat: 'reels',
         dateAdded: new Date().toISOString().split('T')[0]
+      },
+      {
+        id: `trend-${Date.now()}-3`,
+        title: '«Ищу работу в студии»: честный разбор отказов и пересборка портфолио',
+        category: 'editorial',
+        categoryLabel: 'Карьера / Editorial',
+        source: 'LinkedIn & Threads Viral Posts',
+        description: 'Сериал-дневник начинающего специалиста: открытый показ переписки с арт-директорами и эволюция кейсов.',
+        tags: ['BuildInPublic', 'CareerHunt', 'JuniorDesigner', 'ArtDirection'],
+        relevanceScore: 94,
+        keyTakeaway: 'Искренность и умение быстро учиться привлекают ведущие студии сильнее идеального кейса.',
+        suggestedFormat: 'thread',
+        dateAdded: new Date().toISOString().split('T')[0]
       }
     ],
     live: false,
@@ -607,7 +853,7 @@ export async function clientScanTrendsAI(category = 'all', model?: string): Prom
     telemetry: {
       status: 200,
       statusText: 'Local Fallback',
-      latencyMs: 12,
+      latencyMs: 20,
       tokens: 0,
       provider: 'fallback',
       model: 'swiss-local-safety-net',
@@ -660,64 +906,36 @@ export async function clientGenerateScriptAI(params: {
 
   const userPrompt = `Тема: ${params.title}. ${params.topic ? `Дополнительно: ${params.topic}` : ''}`;
 
-  // 1. Try Gemini
-  if (geminiKey && (!settings.aiProviderMode || settings.aiProviderMode !== 'openrouter_only')) {
-    const res = await clientCallGemini({
-      apiKey: geminiKey,
-      model: requestedModel.includes('gemini') ? requestedModel : 'gemini-3.8-flash',
-      systemPrompt,
-      userPrompt
-    });
+  const cascadeRes = await clientExecuteCascadeGeneration({
+    systemPrompt,
+    userPrompt,
+    parser: robustExtractJson,
+    preferredModel: requestedModel,
+    geminiApiKey: geminiKey,
+    openRouterApiKey: openRouterKey,
+    aiProviderMode: settings.aiProviderMode
+  });
 
-    if (res.ok && res.data) {
-      return {
-        result: res.data,
+  if (cascadeRes.ok && cascadeRes.data) {
+    return {
+      result: cascadeRes.data,
+      live: true,
+      modelUsed: cascadeRes.modelUsed || 'gemini-3.8-flash',
+      telemetry: {
+        status: 200,
+        statusText: 'OK',
+        latencyMs: cascadeRes.latencyMs,
+        tokens: cascadeRes.tokens,
+        provider: cascadeRes.provider,
+        model: cascadeRes.modelUsed || 'gemini-3.8-flash',
         live: true,
-        modelUsed: res.modelUsed || 'gemini-3.8-flash',
-        telemetry: {
-          status: res.status,
-          statusText: res.statusText,
-          latencyMs: res.latencyMs,
-          tokens: res.tokens,
-          provider: 'gemini',
-          model: res.modelUsed || 'gemini-3.8-flash',
-          live: true
-        }
-      };
-    }
+        cascadeTriggered: cascadeRes.cascadeTriggered,
+        message: cascadeRes.message
+      }
+    };
   }
 
-  // 2. Try OpenRouter
-  if (openRouterKey && (!settings.aiProviderMode || settings.aiProviderMode !== 'gemini_only')) {
-    const openRouterModel = (requestedModel.includes('/') && requestedModel.includes(':free'))
-      ? requestedModel
-      : 'google/gemma-4-31b-it:free';
-    const res = await clientCallOpenRouter({
-      apiKey: openRouterKey,
-      model: openRouterModel,
-      systemPrompt,
-      userPrompt
-    });
-
-    if (res.ok && res.data) {
-      return {
-        result: res.data,
-        live: true,
-        modelUsed: res.modelUsed || 'openrouter/free',
-        telemetry: {
-          status: res.status,
-          statusText: res.statusText,
-          latencyMs: res.latencyMs,
-          tokens: res.tokens,
-          provider: 'openrouter',
-          model: res.modelUsed || 'openrouter/free',
-          live: true
-        }
-      };
-    }
-  }
-
-  // 3. Fallback to Local Swiss Template
+  // Fallback to Local Swiss Template
   return {
     result: {
       hook: `Почему 90% новичков спотыкаются на этом при верстке «${params.title}»`,

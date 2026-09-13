@@ -12,7 +12,10 @@ import {
   testGeminiPing,
   testOpenRouterPing,
   robustExtractJson,
-  robustExtractTrendsJson
+  robustExtractTrendsJson,
+  executeCascadeGeneration,
+  GEMINI_CASCADE_MODELS,
+  OPENROUTER_FREE_CASCADE_MODELS
 } from './aiService.js';
 
 dotenv.config();
@@ -161,152 +164,57 @@ app.post('/api/trends/scan', async (req, res) => {
 
   const userPrompt = `Найди 3 свежих виральных формата для начинающего графического дизайнера в категории: ${category}. Только валидный JSON объект со свойством "trends".`;
 
-  let geminiTelemetry = { attempted: false, ok: false, status: null, error: null, latencyMs: 0 };
-  let openRouterTelemetry = { attempted: false, ok: false, status: null, error: null, latencyMs: 0 };
-  let cascadeDetails = [];
-
   // ==========================================
-  // STEP 1: PRIMARY ATTEMPT - GOOGLE GEMINI
+  // MULTI-MODEL CASCADE SCAN (TRY PREFERRED -> ALL CANDIDATES IN POOL)
   // ==========================================
-  const shouldTryGemini =
-    aiProviderMode !== 'openrouter_only' &&
-    geminiApiKey &&
-    geminiApiKey.trim() !== '' &&
-    (!requestedModel || requestedModel.includes('gemini') || aiProviderMode === 'cascade' || aiProviderMode === 'gemini_only');
+  const cascadeRes = await executeCascadeGeneration({
+    systemPrompt,
+    userPrompt,
+    parser: robustExtractTrendsJson,
+    preferredModel: requestedModel || settings.defaultModel || 'gemini-3.8-flash',
+    geminiApiKey,
+    openRouterApiKey,
+    aiProviderMode,
+    onLog: msg => console.warn('[AI CASCADE - TRENDS]', msg)
+  });
 
-  if (shouldTryGemini) {
-    geminiTelemetry.attempted = true;
-    const geminiModel = requestedModel && requestedModel.includes('gemini') ? requestedModel : defaultGeminiModel;
-    const geminiRes = await callGemini({
-      apiKey: geminiApiKey,
-      model: geminiModel,
-      systemPrompt,
-      userPrompt,
-      parser: robustExtractTrendsJson
-    });
+  if (cascadeRes.ok && Array.isArray(cascadeRes.data) && cascadeRes.data.length > 0) {
+    const uniqueGenerated = cascadeRes.data.filter(item =>
+      !db.trends.some(t => t.title.trim().toLowerCase() === (item.title || '').trim().toLowerCase())
+    ).map((item, index) => ({
+      ...item,
+      id: `trend-ai-${Date.now()}-${index}`,
+      dateAdded: new Date().toISOString().split('T')[0]
+    }));
 
-    geminiTelemetry.ok = geminiRes.ok;
-    geminiTelemetry.status = geminiRes.status;
-    geminiTelemetry.error = geminiRes.error;
-    geminiTelemetry.latencyMs = geminiRes.latencyMs;
-
-    if (geminiRes.ok && Array.isArray(geminiRes.data) && geminiRes.data.length > 0) {
-      // Deduplicate against existing trends by title
-      const uniqueGenerated = geminiRes.data.filter(item =>
-        !db.trends.some(t => t.title.trim().toLowerCase() === (item.title || '').trim().toLowerCase())
-      ).map((item, index) => ({
-        ...item,
-        id: `trend-ai-${Date.now()}-${index}`,
-        dateAdded: new Date().toISOString().split('T')[0]
-      }));
-
-      if (uniqueGenerated.length > 0) {
-        db.trends = [...uniqueGenerated, ...db.trends];
-        saveDb(db);
-      }
-
-      return res.json({
-        trends: uniqueGenerated.length > 0 ? uniqueGenerated : db.trends.slice(0, 3),
-        live: true,
-        provider: 'gemini',
-        modelUsed: geminiRes.modelUsed,
-        telemetry: {
-          provider: 'gemini',
-          status: 200,
-          statusText: 'OK',
-          latencyMs: geminiRes.latencyMs,
-          model: geminiRes.modelUsed,
-          tokens: geminiRes.tokens,
-          live: true,
-          isFallback: false,
-          cascadeTriggered: false,
-          duplicatesSkipped: geminiRes.data.length - uniqueGenerated.length,
-          message: `Скан трендов успешно выполнен через Google Gemini (${geminiRes.modelUsed}, ${geminiRes.latencyMs}мс)`
-        }
-      });
+    if (uniqueGenerated.length > 0) {
+      db.trends = [...uniqueGenerated, ...db.trends];
+      saveDb(db);
     }
 
-    const reason = geminiRes.isRateLimited
-      ? 'Лимит запросов Google Gemini исчерпан (429 Rate Limit / Quota)'
-      : `Google Gemini вернул ошибку (${geminiRes.status}: ${geminiRes.error})`;
-    cascadeDetails.push(reason);
-    console.warn('[AI CASCADE - TRENDS]', reason, '-> Переключение на резервный OpenRouter...');
-  } else if (!geminiApiKey && aiProviderMode !== 'openrouter_only') {
-    cascadeDetails.push('Ключ Gemini API не настроен, используется OpenRouter');
-  }
-
-  // ==========================================
-  // STEP 2: SECONDARY ATTEMPT - OPENROUTER (FALLBACK)
-  // ==========================================
-  const shouldTryOpenRouter =
-    aiProviderMode !== 'gemini_only' &&
-    openRouterApiKey &&
-    openRouterApiKey.trim() !== '';
-
-  if (shouldTryOpenRouter) {
-    openRouterTelemetry.attempted = true;
-    let openRouterModel = requestedModel && !requestedModel.includes('gemini')
-      ? requestedModel
-      : (defaultOpenRouterModel && !defaultOpenRouterModel.includes('gemini') ? defaultOpenRouterModel : 'google/gemma-4-31b-it:free');
-
-    const openRouterRes = await callOpenRouter({
-      apiKey: openRouterApiKey,
-      model: openRouterModel,
-      systemPrompt,
-      userPrompt,
-      parser: robustExtractTrendsJson
-    });
-
-    openRouterTelemetry.ok = openRouterRes.ok;
-    openRouterTelemetry.status = openRouterRes.status;
-    openRouterTelemetry.error = openRouterRes.error;
-    openRouterTelemetry.latencyMs = openRouterRes.latencyMs;
-
-    if (openRouterRes.ok && Array.isArray(openRouterRes.data) && openRouterRes.data.length > 0) {
-      const wasCascade = geminiTelemetry.attempted && !geminiTelemetry.ok;
-      const uniqueGenerated = openRouterRes.data.filter(item =>
-        !db.trends.some(t => t.title.trim().toLowerCase() === (item.title || '').trim().toLowerCase())
-      ).map((item, index) => ({
-        ...item,
-        id: `trend-ai-${Date.now()}-${index}`,
-        dateAdded: new Date().toISOString().split('T')[0]
-      }));
-
-      if (uniqueGenerated.length > 0) {
-        db.trends = [...uniqueGenerated, ...db.trends];
-        saveDb(db);
-      }
-
-      return res.json({
-        trends: uniqueGenerated.length > 0 ? uniqueGenerated : db.trends.slice(0, 3),
+    return res.json({
+      trends: uniqueGenerated.length > 0 ? uniqueGenerated : db.trends.slice(0, 3),
+      live: true,
+      provider: cascadeRes.provider,
+      modelUsed: cascadeRes.modelUsed,
+      telemetry: {
+        provider: cascadeRes.provider,
+        status: 200,
+        statusText: 'OK',
+        latencyMs: cascadeRes.latencyMs,
+        generationId: cascadeRes.generationId,
+        model: cascadeRes.modelUsed,
+        tokens: cascadeRes.tokens,
         live: true,
-        provider: 'openrouter',
-        modelUsed: openRouterRes.modelUsed,
-        telemetry: {
-          provider: 'openrouter',
-          status: 200,
-          statusText: 'OK',
-          latencyMs: openRouterRes.latencyMs,
-          generationId: openRouterRes.generationId,
-          model: openRouterRes.modelUsed,
-          tokens: openRouterRes.tokens,
-          live: true,
-          isFallback: false,
-          cascadeTriggered: wasCascade,
-          cascadeDetails: wasCascade ? cascadeDetails.join('; ') : undefined,
-          duplicatesSkipped: openRouterRes.data.length - uniqueGenerated.length,
-          message: wasCascade
-            ? `⚡️ [АВТО-КАСКАД] ${cascadeDetails[0]}. Тренды успешно получены через резервный OpenRouter (${openRouterRes.modelUsed}, ID: ${openRouterRes.generationId}).`
-            : `Скан трендов успешно выполнен через OpenRouter (${openRouterRes.modelUsed}, ID: ${openRouterRes.generationId}).`
-        }
-      });
-    }
-
-    cascadeDetails.push(`OpenRouter вернул ошибку HTTP ${openRouterRes.status}: ${openRouterRes.error}`);
-    console.warn('[AI CASCADE - TRENDS] OpenRouter fallback also failed:', openRouterRes.error);
-  } else if (!openRouterApiKey && aiProviderMode !== 'gemini_only') {
-    cascadeDetails.push('Ключ OpenRouter не указан в настройках');
+        isFallback: false,
+        cascadeTriggered: cascadeRes.cascadeTriggered,
+        duplicatesSkipped: cascadeRes.data.length - uniqueGenerated.length,
+        message: cascadeRes.message
+      }
+    });
   }
+
+  console.warn('[AI CASCADE - TRENDS] All candidate models failed or unavailable:', cascadeRes.attemptTrail);
 
   // ==========================================
   // STEP 3: HIGH-FIDELITY LOCAL SWISS FALLBACK (ULTIMATE SAFETY NET)
@@ -620,11 +528,39 @@ app.post('/api/ai/test-connection', async (req, res) => {
     });
   }
 
-  // Combined Cascade Test
-  const [geminiResult, openRouterResult] = await Promise.all([
-    testGeminiPing(geminiKey, 'gemini-3.8-flash'),
-    testOpenRouterPing(openRouterKey, 'google/gemma-4-31b-it:free')
-  ]);
+  // Combined Cascade Test with multi-model failover check
+  let geminiResult = await testGeminiPing(geminiKey, req.body.model?.includes('gemini') ? req.body.model : 'gemini-3.8-flash');
+  if (!geminiResult.connected && geminiKey) {
+    for (const altModel of GEMINI_CASCADE_MODELS) {
+      if (altModel !== 'gemini-3.8-flash') {
+        const alt = await testGeminiPing(geminiKey, altModel);
+        if (alt.connected) {
+          geminiResult = {
+            ...alt,
+            message: `✓ Подключение к Google Gemini успешно (через ${altModel}, ${alt.latencyMs}мс)`
+          };
+          break;
+        }
+      }
+    }
+  }
+
+  const preferredOrModel = (req.body.model?.includes('/') && req.body.model?.includes(':free')) ? req.body.model : 'google/gemma-4-31b-it:free';
+  let openRouterResult = await testOpenRouterPing(openRouterKey, preferredOrModel);
+  if (!openRouterResult.connected && openRouterKey) {
+    for (const altModel of OPENROUTER_FREE_CASCADE_MODELS) {
+      if (altModel !== preferredOrModel) {
+        const alt = await testOpenRouterPing(openRouterKey, altModel);
+        if (alt.connected) {
+          openRouterResult = {
+            ...alt,
+            message: `✓ Подключение к OpenRouter успешно (через ${altModel}, ${alt.latencyMs}мс)`
+          };
+          break;
+        }
+      }
+    }
+  }
 
   const cascadeActive = geminiResult.connected || openRouterResult.connected;
   let summaryMessage = '';
@@ -932,122 +868,43 @@ app.post('/api/ai/generate-script', async (req, res) => {
 
   const userPrompt = `Сгенерируй виральный сценарий для портфолио джуниор-дизайнера на тему: "${title || topic}". Стратегия: ${viralStrategy || 'Редизайн бренда / Поиск работы'}. Формат: ${format || 'carousel'}. Каналы: ${(channels || []).join(', ')}.`;
 
-  let geminiTelemetry = { attempted: false, ok: false, status: null, error: null, latencyMs: 0 };
-  let openRouterTelemetry = { attempted: false, ok: false, status: null, error: null, latencyMs: 0 };
-  let cascadeDetails = [];
-
   // ==========================================
-  // STEP 1: PRIMARY ATTEMPT - GOOGLE GEMINI
+  // MULTI-MODEL CASCADE SCRIPT GENERATION (TRY PREFERRED -> ALL CANDIDATES IN POOL)
   // ==========================================
-  const shouldTryGemini =
-    aiProviderMode !== 'openrouter_only' &&
-    geminiApiKey &&
-    geminiApiKey.trim() !== '' &&
-    (!requestedModel || requestedModel.includes('gemini') || aiProviderMode === 'cascade' || aiProviderMode === 'gemini_only');
+  const cascadeRes = await executeCascadeGeneration({
+    systemPrompt,
+    userPrompt,
+    parser: robustExtractJson,
+    preferredModel: requestedModel || settings.defaultModel || 'gemini-3.8-flash',
+    geminiApiKey,
+    openRouterApiKey,
+    aiProviderMode,
+    onLog: msg => console.warn('[AI CASCADE - SCRIPT]', msg)
+  });
 
-  if (shouldTryGemini) {
-    geminiTelemetry.attempted = true;
-    const geminiModel = requestedModel && requestedModel.includes('gemini') ? requestedModel : (db.settings?.defaultGeminiModel || 'gemini-3.8-flash');
-    const geminiRes = await callGemini({
-      apiKey: geminiApiKey,
-      model: geminiModel,
-      systemPrompt,
-      userPrompt
-    });
-
-    geminiTelemetry.ok = geminiRes.ok;
-    geminiTelemetry.status = geminiRes.status;
-    geminiTelemetry.error = geminiRes.error;
-    geminiTelemetry.latencyMs = geminiRes.latencyMs;
-
-    if (geminiRes.ok && geminiRes.data) {
-      return res.json({
-        result: geminiRes.data,
+  if (cascadeRes.ok && cascadeRes.data) {
+    return res.json({
+      result: cascadeRes.data,
+      live: true,
+      provider: cascadeRes.provider,
+      modelUsed: cascadeRes.modelUsed,
+      telemetry: {
+        provider: cascadeRes.provider,
+        status: 200,
+        statusText: 'OK',
+        latencyMs: cascadeRes.latencyMs,
+        generationId: cascadeRes.generationId,
+        model: cascadeRes.modelUsed,
+        tokens: cascadeRes.tokens,
         live: true,
-        provider: 'gemini',
-        modelUsed: geminiRes.modelUsed,
-        telemetry: {
-          provider: 'gemini',
-          status: 200,
-          statusText: 'OK',
-          latencyMs: geminiRes.latencyMs,
-          model: geminiRes.modelUsed,
-          tokens: geminiRes.tokens,
-          live: true,
-          isFallback: false,
-          cascadeTriggered: false,
-          message: `Генерация успешно выполнена через Google Gemini (${geminiRes.modelUsed}, ${geminiRes.latencyMs}ms)`
-        }
-      });
-    }
-
-    // Gemini failed - determine cascade reason
-    const reason = geminiRes.isRateLimited
-      ? 'Лимит запросов Google Gemini исчерпан (429 Rate Limit / Quota)'
-      : `Google Gemini вернул ошибку (${geminiRes.status}: ${geminiRes.error})`;
-    cascadeDetails.push(reason);
-    console.warn('[AI CASCADE]', reason, '-> Переключение на резерв OpenRouter...');
-  } else if (!geminiApiKey && aiProviderMode !== 'openrouter_only') {
-    cascadeDetails.push('Ключ Gemini API не настроен, используется OpenRouter');
+        isFallback: false,
+        cascadeTriggered: cascadeRes.cascadeTriggered,
+        message: cascadeRes.message
+      }
+    });
   }
 
-  // ==========================================
-  // STEP 2: SECONDARY ATTEMPT - OPENROUTER (FALLBACK)
-  // ==========================================
-  const shouldTryOpenRouter =
-    aiProviderMode !== 'gemini_only' &&
-    openRouterApiKey &&
-    openRouterApiKey.trim() !== '';
-
-  if (shouldTryOpenRouter) {
-    openRouterTelemetry.attempted = true;
-    let openRouterModel = requestedModel && !requestedModel.includes('gemini')
-      ? requestedModel
-      : (settings.defaultOpenRouterModel || (!settings.defaultModel?.includes('gemini') ? settings.defaultModel : 'google/gemma-4-31b-it:free'));
-
-    const openRouterRes = await callOpenRouter({
-      apiKey: openRouterApiKey,
-      model: openRouterModel,
-      systemPrompt,
-      userPrompt
-    });
-
-    openRouterTelemetry.ok = openRouterRes.ok;
-    openRouterTelemetry.status = openRouterRes.status;
-    openRouterTelemetry.error = openRouterRes.error;
-    openRouterTelemetry.latencyMs = openRouterRes.latencyMs;
-
-    if (openRouterRes.ok && openRouterRes.data) {
-      const wasCascade = geminiTelemetry.attempted && !geminiTelemetry.ok;
-      return res.json({
-        result: openRouterRes.data,
-        live: true,
-        provider: 'openrouter',
-        modelUsed: openRouterRes.modelUsed,
-        telemetry: {
-          provider: 'openrouter',
-          status: 200,
-          statusText: 'OK',
-          latencyMs: openRouterRes.latencyMs,
-          generationId: openRouterRes.generationId,
-          model: openRouterRes.modelUsed,
-          tokens: openRouterRes.tokens,
-          live: true,
-          isFallback: false,
-          cascadeTriggered: wasCascade,
-          cascadeDetails: wasCascade ? cascadeDetails.join('; ') : undefined,
-          message: wasCascade
-            ? `⚡️ [АВТО-КАСКАД] ${cascadeDetails[0]}. Сценарий успешно сгенерирован через резервный OpenRouter (${openRouterRes.modelUsed}, ID: ${openRouterRes.generationId}).`
-            : `Запрос успешно выполнен через OpenRouter (${openRouterRes.modelUsed}, ID: ${openRouterRes.generationId}).`
-        }
-      });
-    }
-
-    cascadeDetails.push(`OpenRouter вернул ошибку HTTP ${openRouterRes.status}: ${openRouterRes.error}`);
-    console.warn('[AI CASCADE] OpenRouter fallback also failed:', openRouterRes.error);
-  } else if (!openRouterApiKey && aiProviderMode !== 'gemini_only') {
-    cascadeDetails.push('Ключ OpenRouter не указан в настройках');
-  }
+  console.warn('[AI CASCADE - SCRIPT] All candidate models failed or unavailable:', cascadeRes.attemptTrail);
 
   // ==========================================
   // STEP 3: HIGH-FIDELITY LOCAL SWISS TEMPLATE (ULTIMATE FALLBACK)
