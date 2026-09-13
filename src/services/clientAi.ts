@@ -160,6 +160,7 @@ export async function clientCallGemini({
   model = 'gemini-3.8-flash',
   systemPrompt,
   userPrompt,
+  useWebSearch = false,
   timeoutMs = 25000,
   parser = robustExtractJson
 }: {
@@ -167,6 +168,7 @@ export async function clientCallGemini({
   model?: string;
   systemPrompt: string;
   userPrompt: string;
+  useWebSearch?: boolean;
   timeoutMs?: number;
   parser?: (text: string) => any;
 }) {
@@ -185,7 +187,7 @@ export async function clientCallGemini({
   const cleanModel = model.replace(/^models\//, '');
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${cleanKey}`;
 
-  const payload = {
+  const payload: any = {
     systemInstruction: {
       parts: [{ text: systemPrompt }]
     },
@@ -196,10 +198,16 @@ export async function clientCallGemini({
       }
     ],
     generationConfig: {
-      responseMimeType: 'application/json',
       temperature: 0.7
     }
   };
+
+  if (useWebSearch) {
+    // Enable live Google Search Grounding for Gemini
+    payload.tools = [{ googleSearch: {} }];
+  } else {
+    payload.generationConfig.responseMimeType = 'application/json';
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -228,7 +236,9 @@ export async function clientCallGemini({
     }
 
     const data = await res.json();
-    const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const candidate = data.candidates?.[0];
+    const candidateText = candidate?.content?.parts?.[0]?.text;
+    const grounding = candidate?.groundingMetadata || null;
     const tokens = data.usageMetadata?.totalTokenCount || 0;
     const parsed = parser(candidateText);
 
@@ -250,7 +260,8 @@ export async function clientCallGemini({
       data: parsed,
       latencyMs,
       modelUsed: cleanModel,
-      tokens
+      tokens,
+      grounding
     };
   } catch (err: any) {
     clearTimeout(timeoutId);
@@ -531,6 +542,53 @@ export function buildCascadeCandidateQueue({
   return candidates;
 }
 
+async function clientFetchWebData(query?: string, sourceUrl?: string): Promise<{ webBlock: string; webSources: any[] }> {
+  const webSources: any[] = [];
+  let webBlock = '';
+
+  try {
+    if (sourceUrl && sourceUrl.startsWith('http')) {
+      const res = await fetch('/api/web/parse-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: sourceUrl })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok) {
+          webSources.push({ title: data.title, url: data.url, snippet: data.description || data.text?.slice(0, 160) });
+          webBlock = `### ДАННЫЕ С РАССМОТРЕННОЙ СТРАНИЦЫ (URL: ${data.url}):\nЗаголовок: ${data.title}\n${data.description ? `Описание: ${data.description}\n` : ''}\nТекст:\n${data.text}\n---`;
+        }
+      }
+    } else if (query) {
+      const res = await fetch('/api/web/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, maxResults: 4 })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.results) && data.results.length > 0) {
+          webSources.push(...data.results);
+          const lines = [
+            '### АКТУАЛЬНЫЕ ДАННЫЕ ИЗ СЕТИ (LIVE WEB SEARCH):',
+            'Используй эти свежие интернет-источники:'
+          ];
+          data.results.forEach((item: any, idx: number) => {
+            lines.push(`[${idx + 1}] ${item.title} (${item.url})\n    ${item.snippet}`);
+          });
+          lines.push('---');
+          webBlock = lines.join('\n');
+        }
+      }
+    }
+  } catch {
+    // Backend offline or unreachable
+  }
+
+  return { webBlock, webSources };
+}
+
 export async function clientExecuteCascadeGeneration({
   systemPrompt,
   userPrompt,
@@ -538,7 +596,10 @@ export async function clientExecuteCascadeGeneration({
   preferredModel,
   geminiApiKey,
   openRouterApiKey,
-  aiProviderMode = 'cascade'
+  aiProviderMode = 'cascade',
+  useWebSearch = false,
+  webQuery,
+  sourceUrl
 }: {
   systemPrompt: string;
   userPrompt: string;
@@ -547,6 +608,9 @@ export async function clientExecuteCascadeGeneration({
   geminiApiKey?: string;
   openRouterApiKey?: string;
   aiProviderMode?: 'cascade' | 'gemini_only' | 'openrouter_only';
+  useWebSearch?: boolean;
+  webQuery?: string;
+  sourceUrl?: string;
 }): Promise<{
   ok: boolean;
   data?: any;
@@ -558,6 +622,8 @@ export async function clientExecuteCascadeGeneration({
   cascadeTriggered: boolean;
   message?: string;
   error?: string;
+  webSources?: any[];
+  grounding?: any;
   attemptTrail: Array<{ provider: string; model: string; error?: string; latencyMs: number }>;
 }> {
   const queue = buildCascadeCandidateQueue({
@@ -577,6 +643,17 @@ export async function clientExecuteCascadeGeneration({
     };
   }
 
+  let enrichedPrompt = userPrompt;
+  let webSources: any[] = [];
+
+  if (sourceUrl || (useWebSearch && webQuery)) {
+    const fetched = await clientFetchWebData(webQuery, sourceUrl);
+    if (fetched.webBlock) {
+      enrichedPrompt = `${fetched.webBlock}\n\n${userPrompt}`;
+      webSources = fetched.webSources;
+    }
+  }
+
   const attemptTrail: Array<{ provider: string; model: string; error?: string; latencyMs: number }> = [];
   let preferredErrorReason = '';
 
@@ -591,7 +668,8 @@ export async function clientExecuteCascadeGeneration({
           apiKey: geminiApiKey!,
           model: candidate.model,
           systemPrompt,
-          userPrompt,
+          userPrompt: enrichedPrompt,
+          useWebSearch: Boolean(useWebSearch),
           timeoutMs: 14000,
           parser
         });
@@ -600,7 +678,7 @@ export async function clientExecuteCascadeGeneration({
           apiKey: openRouterApiKey!,
           model: candidate.model,
           systemPrompt,
-          userPrompt,
+          userPrompt: enrichedPrompt,
           timeoutMs: 20000,
           parser
         });
@@ -625,7 +703,9 @@ export async function clientExecuteCascadeGeneration({
           generationId: res.generationId || null,
           cascadeTriggered,
           attemptTrail,
-          message
+          message,
+          webSources,
+          grounding: res.grounding || null
         };
       }
 
@@ -747,7 +827,17 @@ export async function clientTestCascadeConnection(params?: { geminiApiKey?: stri
 }
 
 // CLIENT-SIDE SCAN TRENDS
-export async function clientScanTrendsAI(category = 'all', model?: string): Promise<{ trends: Trend[]; live: boolean; modelUsed?: string; telemetry?: AiTelemetry }> {
+export async function clientScanTrendsAI(
+  categoryOrParams: string | { category?: string; model?: string; query?: string; url?: string; useWebSearch?: boolean } = 'all',
+  modelArg?: string
+): Promise<{ trends: Trend[]; live: boolean; modelUsed?: string; webSources?: any[]; telemetry?: AiTelemetry }> {
+  const isObj = typeof categoryOrParams === 'object' && categoryOrParams !== null;
+  const category = isObj ? (categoryOrParams.category || 'all') : categoryOrParams;
+  const model = isObj ? categoryOrParams.model : modelArg;
+  const query = isObj ? categoryOrParams.query : undefined;
+  const url = isObj ? categoryOrParams.url : undefined;
+  const useWebSearch = isObj ? (categoryOrParams.useWebSearch ?? true) : true;
+
   const settings = readLocalSettings();
   const geminiKey = settings.geminiApiKey;
   const openRouterKey = settings.openRouterApiKey;
@@ -774,7 +864,9 @@ export async function clientScanTrendsAI(category = 'all', model?: string): Prom
   ]
 }`;
 
-  const userPrompt = `Сгенерируй свежие виральные микро-тренды для категории: ${category}.`;
+  const userPrompt = url
+    ? `Проанализируй контент по указанному URL (${url}) и выдели 3 ультра-виральных микро-тренда или формата для джуниор-дизайнера.`
+    : `Сгенерируй свежие виральные микро-тренды для категории: ${category}.${query ? ` Запрос: ${query}` : ''}`;
 
   const cascadeRes = await clientExecuteCascadeGeneration({
     systemPrompt,
@@ -783,14 +875,29 @@ export async function clientScanTrendsAI(category = 'all', model?: string): Prom
     preferredModel: requestedModel,
     geminiApiKey: geminiKey,
     openRouterApiKey: openRouterKey,
-    aiProviderMode: settings.aiProviderMode
+    aiProviderMode: settings.aiProviderMode,
+    useWebSearch,
+    webQuery: query || (category !== 'all' ? `Junior graphic design trends ${category} 2026` : 'Junior graphic design portfolio trends 2026'),
+    sourceUrl: url
   });
 
   if (cascadeRes.ok && Array.isArray(cascadeRes.data) && cascadeRes.data.length > 0) {
+    const trends = cascadeRes.data.map((item: any, idx: number) => {
+      const matched = cascadeRes.webSources?.[idx] || cascadeRes.webSources?.[0];
+      return {
+        ...item,
+        id: item.id || `trend-client-${Date.now()}-${idx}`,
+        source: matched?.title ? `${item.source || 'Online'} [${matched.title.slice(0, 30)}]` : (item.source || 'Web Search 2026'),
+        sourceUrl: matched?.url || url || undefined,
+        dateAdded: new Date().toISOString().split('T')[0]
+      };
+    });
+
     return {
-      trends: cascadeRes.data,
+      trends,
       live: true,
       modelUsed: cascadeRes.modelUsed,
+      webSources: cascadeRes.webSources,
       telemetry: {
         status: 200,
         statusText: 'OK',
@@ -800,7 +907,8 @@ export async function clientScanTrendsAI(category = 'all', model?: string): Prom
         model: cascadeRes.modelUsed || 'gemini-3.8-flash',
         live: true,
         cascadeTriggered: cascadeRes.cascadeTriggered,
-        message: cascadeRes.message
+        message: cascadeRes.message,
+        webGrounded: (cascadeRes.webSources && cascadeRes.webSources.length > 0) || Boolean(cascadeRes.grounding)
       }
     };
   }
@@ -872,10 +980,13 @@ export async function clientGenerateScriptAI(params: {
   channels: Platform[];
   model?: string;
   viralStrategy?: string;
+  useWebSearch?: boolean;
+  sourceUrl?: string;
 }): Promise<{
   result: any;
   live: boolean;
   modelUsed: string;
+  webSources?: any[];
   telemetry?: AiTelemetry;
 }> {
   const settings = readLocalSettings();
@@ -913,7 +1024,10 @@ export async function clientGenerateScriptAI(params: {
     preferredModel: requestedModel,
     geminiApiKey: geminiKey,
     openRouterApiKey: openRouterKey,
-    aiProviderMode: settings.aiProviderMode
+    aiProviderMode: settings.aiProviderMode,
+    useWebSearch: params.useWebSearch ?? true,
+    webQuery: params.title,
+    sourceUrl: params.sourceUrl
   });
 
   if (cascadeRes.ok && cascadeRes.data) {
@@ -921,6 +1035,7 @@ export async function clientGenerateScriptAI(params: {
       result: cascadeRes.data,
       live: true,
       modelUsed: cascadeRes.modelUsed || 'gemini-3.8-flash',
+      webSources: cascadeRes.webSources,
       telemetry: {
         status: 200,
         statusText: 'OK',
@@ -930,7 +1045,8 @@ export async function clientGenerateScriptAI(params: {
         model: cascadeRes.modelUsed || 'gemini-3.8-flash',
         live: true,
         cascadeTriggered: cascadeRes.cascadeTriggered,
-        message: cascadeRes.message
+        message: cascadeRes.message,
+        webGrounded: (cascadeRes.webSources && cascadeRes.webSources.length > 0) || Boolean(cascadeRes.grounding)
       }
     };
   }

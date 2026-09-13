@@ -75,6 +75,7 @@ export const PostModal: React.FC<PostModalProps> = ({
     'Редизайн бренда / До и После (разбор мышления в Figma)'
   );
   const [useWebSearch, setUseWebSearch] = useState<boolean>(true);
+  const [referenceUrl, setReferenceUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [aiTone, setAiTone] = useState<string>('голодный джуниор, открытый к критике, строгий швейцарский стиль');
   const [aiAudience, setAiAudience] = useState<string>('арт-директора студий, лид-дизайнеры, клиенты');
@@ -183,7 +184,9 @@ export const PostModal: React.FC<PostModalProps> = ({
         tone: aiTone,
         channels: formData.channels,
         model: selectedModel,
-        viralStrategy
+        viralStrategy,
+        useWebSearch,
+        sourceUrl: referenceUrl.trim() ? referenceUrl.trim() : undefined
       });
 
       if (res.telemetry) {
@@ -202,8 +205,10 @@ export const PostModal: React.FC<PostModalProps> = ({
 
       const result = res.result;
       if (result) {
+        const detectedUrl = referenceUrl.trim() || res.webSources?.[0]?.url;
         setFormData(prev => ({
           ...prev,
+          destinationUrl: prev.destinationUrl || detectedUrl || prev.destinationUrl,
           hook: result.hook || prev.hook,
           caption: result.caption || prev.caption,
           slides: result.slides || prev.slides,
@@ -961,6 +966,22 @@ export const PostModal: React.FC<PostModalProps> = ({
                       </>
                     )}
                   </button>
+                </div>
+
+                {/* Reference URL Scraper Input */}
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label className="swiss-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Globe size={12} color="#33cc66" />
+                    Ссылка на референс / веб-источник (URL для парсинга и сценария — опционально)
+                  </label>
+                  <input
+                    type="url"
+                    className="swiss-input"
+                    value={referenceUrl}
+                    onChange={e => setReferenceUrl(e.target.value)}
+                    placeholder="https://behance.net/gallery/... или ссылка на кейс/статью (ИИ спарсит контент и напишет разбор)"
+                    style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}
+                  />
                 </div>
 
                 {/* SANDBOX & API TELEMETRY INSPECTOR */}

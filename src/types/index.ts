@@ -83,6 +83,7 @@ export interface Trend {
   keyTakeaway: string;
   suggestedFormat: ContentFormat;
   dateAdded: string;
+  sourceUrl?: string;
 }
 
 export interface AiModelOption {
@@ -161,6 +162,8 @@ export interface AiTelemetry {
   openRouterStatus?: number | null;
   openRouterError?: string | null;
   duplicatesSkipped?: number;
+  webGrounded?: boolean;
+  webSourcesCount?: number;
 }
 
 export interface AiTestConnectionResult {

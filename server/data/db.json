@@ -132,6 +132,24 @@
   ],
   "trends": [
     {
+      "title": "3 правила швейцарского плаката, о которых молчат на курсах",
+      "category": "typography",
+      "categoryLabel": "Типографика",
+      "source": "Threads Design Community",
+      "description": "Короткий тред с наглядными схемами: оптические компенсаторы, контраст кеглей 1:3 и золотое сечение в гротесках.",
+      "tags": [
+        "Swiss Poster",
+        "Type Hierarchy",
+        "Design Tips",
+        "Threads"
+      ],
+      "relevanceScore": 94,
+      "keyTakeaway": "Прикладывайте PNG-схему сетки в первом твите.",
+      "suggestedFormat": "thread",
+      "id": "trend-ai-fallback-1789304278607-3",
+      "dateAdded": "2026-09-13"
+    },
+    {
       "title": "Рендер логотипа за 60 секунд",
       "category": "typography",
       "categoryLabel": "Типографика",

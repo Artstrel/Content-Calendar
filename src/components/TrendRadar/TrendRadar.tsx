@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Trend, Post, ContentFormat, AiTelemetry } from '../../types/index.ts';
-import { Sparkles, Plus, ArrowUpRight, Loader2, Activity } from 'lucide-react';
+import { Sparkles, Plus, ArrowUpRight, Loader2, Activity, Globe, ExternalLink, Link2, Search } from 'lucide-react';
 import { scanTrendsAI, createTrend } from '../../services/api.ts';
 
 interface TrendRadarProps {
@@ -24,6 +24,11 @@ export const TrendRadar: React.FC<TrendRadarProps> = ({
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanTelemetry, setScanTelemetry] = useState<AiTelemetry | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isWebRadarOpen, setIsWebRadarOpen] = useState<boolean>(false);
+  const [webQuery, setWebQuery] = useState<string>('');
+  const [webUrl, setWebUrl] = useState<string>('');
+  const [useWebGrounding, setUseWebGrounding] = useState<boolean>(true);
+  const [webSources, setWebSources] = useState<Array<{ title: string; url: string; snippet?: string }>>([]);
   const [newTrend, setNewTrend] = useState({
     title: '',
     category: 'branding',
@@ -48,13 +53,22 @@ export const TrendRadar: React.FC<TrendRadarProps> = ({
     ? trends
     : trends.filter(t => t.category === selectedCategory);
 
-  const handleScan = async () => {
+  const handleScan = async (params?: { query?: string; url?: string }) => {
     setIsScanning(true);
     setScanTelemetry(null);
     try {
-      const res = await scanTrendsAI(selectedCategory, settings?.defaultModel);
+      const res = await scanTrendsAI({
+        category: selectedCategory,
+        model: settings?.defaultModel,
+        query: params?.query || (webQuery.trim() ? webQuery.trim() : undefined),
+        url: params?.url || (webUrl.trim() ? webUrl.trim() : undefined),
+        useWebSearch: useWebGrounding
+      });
       if (res.telemetry) {
         setScanTelemetry(res.telemetry);
+      }
+      if (res.webSources && res.webSources.length > 0) {
+        setWebSources(res.webSources);
       }
       onRefreshTrends();
     } catch (err: any) {
@@ -132,8 +146,17 @@ export const TrendRadar: React.FC<TrendRadarProps> = ({
             + ADD REFERENCE
           </button>
           <button 
+            className={`swiss-btn swiss-btn-sm ${isWebRadarOpen ? 'active' : ''}`}
+            onClick={() => setIsWebRadarOpen(!isWebRadarOpen)}
+            style={isWebRadarOpen ? { borderColor: 'var(--text-primary)', backgroundColor: 'var(--bg-surface-elevated)' } : {}}
+            title="Открыть живой онлайн-поиск и парсер страниц по URL"
+          >
+            <Globe size={14} />
+            {isWebRadarOpen ? '✕ ЗАКРЫТЬ WEB ПАРСЕР' : '🌐 WEB ПАРСЕР & URL'}
+          </button>
+          <button 
             className="swiss-btn swiss-btn-primary swiss-btn-sm"
-            onClick={handleScan}
+            onClick={() => handleScan()}
             disabled={isScanning}
           >
             {isScanning ? (
@@ -150,6 +173,125 @@ export const TrendRadar: React.FC<TrendRadarProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Live Web Radar & URL Scraper Panel */}
+      {isWebRadarOpen && (
+        <div style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-focus)',
+          padding: '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Globe size={16} color="var(--accent-primary)" />
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '12px' }}>
+                LIVE WEB RADAR // АВТОНОМНЫЙ ПАРСЕР ПО СЕТИ И ССЫЛКАМ
+              </span>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: 'var(--font-mono)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={useWebGrounding}
+                onChange={e => setUseWebGrounding(e.target.checked)}
+                style={{ accentColor: 'var(--text-primary)' }}
+              />
+              ОНЛАЙН-ГРАУНДИНГ (GOOGLE SEARCH & WEB)
+            </label>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label className="swiss-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Search size={12} />
+                Поиск актуальных тем и практик в сети
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  className="swiss-input"
+                  placeholder="Например: Figma AI updates 2026, Kinetic Swiss typography..."
+                  value={webQuery}
+                  onChange={e => setWebQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleScan({ query: webQuery }); }}
+                />
+                <button
+                  type="button"
+                  className="swiss-btn swiss-btn-primary"
+                  style={{ whiteSpace: 'nowrap', fontSize: '11px' }}
+                  onClick={() => handleScan({ query: webQuery })}
+                  disabled={isScanning}
+                >
+                  {isScanning ? <Loader2 size={13} className="spin" /> : <Search size={13} />}
+                  ПОИСК В СЕТИ
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label className="swiss-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Link2 size={12} />
+                Парсинг целевой ссылки (Behance, статья, кейс)
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="url"
+                  className="swiss-input"
+                  placeholder="https://behance.net/gallery/... или ссылка на дизайн-статью"
+                  value={webUrl}
+                  onChange={e => setWebUrl(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && webUrl.trim()) handleScan({ url: webUrl }); }}
+                />
+                <button
+                  type="button"
+                  className="swiss-btn"
+                  style={{ whiteSpace: 'nowrap', fontSize: '11px', borderColor: '#33cc66', color: '#33cc66' }}
+                  onClick={() => handleScan({ url: webUrl })}
+                  disabled={isScanning || !webUrl.trim()}
+                >
+                  {isScanning ? <Loader2 size={13} className="spin" /> : <ExternalLink size={13} />}
+                  СПАРСИТЬ URL
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {webSources.length > 0 && (
+            <div style={{ paddingTop: '8px', borderTop: '1px dashed var(--border-light)', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-secondary)' }}>
+                ИСТОЧНИКИ В СЕТИ:
+              </span>
+              {webSources.map((s, idx) => (
+                <a
+                  key={idx}
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '10px',
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--text-primary)',
+                    backgroundColor: 'var(--bg-surface-elevated)',
+                    border: '1px solid var(--border-light)',
+                    padding: '2px 8px',
+                    textDecoration: 'none'
+                  }}
+                  title={s.snippet || s.title}
+                >
+                  <Globe size={10} color="#33cc66" />
+                  <span>{s.title?.slice(0, 35) || s.url}</span>
+                  <ExternalLink size={9} />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Real-Time AI Telemetry Alert */}
       {scanTelemetry && (() => {
@@ -219,7 +361,32 @@ export const TrendRadar: React.FC<TrendRadarProps> = ({
             <article key={trend.id} className="trend-card" style={existingPost ? { borderColor: '#2e4d36' } : {}}>
               <div>
                 <div className="trend-card-header">
-                  <span className="trend-category-tag">{trend.categoryLabel} // {trend.source}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span className="trend-category-tag">{trend.categoryLabel} // {trend.source}</span>
+                    {trend.sourceUrl && (
+                      <a
+                        href={trend.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          color: '#33cc66',
+                          fontSize: '9px',
+                          textDecoration: 'none',
+                          fontFamily: 'var(--font-mono)',
+                          border: '1px solid #33cc66',
+                          padding: '1px 5px'
+                        }}
+                        title={`Открыть первоисточник: ${trend.sourceUrl}`}
+                      >
+                        <Globe size={10} />
+                        <span>LINK</span>
+                        <ExternalLink size={8} />
+                      </a>
+                    )}
+                  </div>
                   {existingPost ? (
                     <span style={{ 
                       backgroundColor: '#122616', 

@@ -33,26 +33,81 @@ export async function createTrend(trend: Partial<Trend>): Promise<Trend & { alre
   return storageAdapter.createTrend(trend);
 }
 
-export async function scanTrendsAI(category?: string, model?: string): Promise<{
+// WEB SEARCH & URL SCRAPING
+export async function searchWeb(query: string, maxResults = 5): Promise<Array<{ title: string; snippet: string; url: string }>> {
+  const hasServer = await checkLocalApiAvailability();
+  if (hasServer) {
+    try {
+      const res = await fetch('/api/web/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, maxResults })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || [];
+      }
+    } catch {
+      // Fallback
+    }
+  }
+  return [];
+}
+
+export async function parseUrlContent(url: string): Promise<{
+  ok: boolean;
+  title?: string;
+  description?: string;
+  headings?: string[];
+  text?: string;
+  url?: string;
+  error?: string;
+}> {
+  const hasServer = await checkLocalApiAvailability();
+  if (hasServer) {
+    try {
+      const res = await fetch('/api/web/parse-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (res.ok) {
+        return res.json();
+      }
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
+  }
+  return { ok: false, error: 'Серверный парсер веб-страниц недоступен' };
+}
+
+export async function scanTrendsAI(
+  categoryOrParams?: string | { category?: string; model?: string; query?: string; url?: string; useWebSearch?: boolean },
+  modelArg?: string
+): Promise<{
   trends: Trend[];
   live: boolean;
   modelUsed?: string;
+  webSources?: any[];
   telemetry?: AiTelemetry;
 }> {
+  const isObj = typeof categoryOrParams === 'object' && categoryOrParams !== null;
+  const payload = isObj ? categoryOrParams : { category: categoryOrParams || 'all', model: modelArg };
+
   const hasServer = await checkLocalApiAvailability();
   if (hasServer) {
     try {
       const res = await fetch('/api/trends/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category, model })
+        body: JSON.stringify(payload)
       });
       if (res.ok) return res.json();
     } catch {
       // Fallback to client-side AI
     }
   }
-  return clientScanTrendsAI(category, model);
+  return clientScanTrendsAI(categoryOrParams, modelArg);
 }
 
 // POSTS
@@ -133,10 +188,13 @@ export async function generateScriptAI(params: {
   channels: Platform[];
   model?: string;
   viralStrategy?: string;
+  useWebSearch?: boolean;
+  sourceUrl?: string;
 }): Promise<{
   result: any;
   live: boolean;
   modelUsed: string;
+  webSources?: any[];
   telemetry?: AiTelemetry;
 }> {
   const hasServer = await checkLocalApiAvailability();

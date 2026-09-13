@@ -5,6 +5,13 @@
  * Local: Swiss High-Fidelity Junior Positioning Fallback
  */
 
+import {
+  searchWeb,
+  parseUrlContent,
+  formatSearchResultsForPrompt,
+  formatUrlContentForPrompt
+} from './webParser.js';
+
 /**
  * Robust JSON extraction & repair utility.
  * Handles markdown fences, <think> reasoning tokens, trailing commas,
@@ -197,6 +204,7 @@ export async function callGemini({
   model = 'gemini-3.8-flash',
   systemPrompt,
   userPrompt,
+  useWebSearch = false,
   timeoutMs = 25000,
   parser = robustExtractJson
 }) {
@@ -226,10 +234,16 @@ export async function callGemini({
       }
     ],
     generationConfig: {
-      responseMimeType: 'application/json',
       temperature: 0.7
     }
   };
+
+  if (useWebSearch) {
+    // Enable live Google Search Grounding for Gemini
+    payload.tools = [{ googleSearch: {} }];
+  } else {
+    payload.generationConfig.responseMimeType = 'application/json';
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -258,7 +272,9 @@ export async function callGemini({
     }
 
     const data = await res.json();
-    const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const candidate = data.candidates?.[0];
+    const candidateText = candidate?.content?.parts?.[0]?.text;
+    const groundingMetadata = candidate?.groundingMetadata || null;
     const tokens = data.usageMetadata?.totalTokenCount || 0;
 
     const parsed = parser(candidateText);
@@ -280,7 +296,8 @@ export async function callGemini({
       data: parsed,
       latencyMs,
       modelUsed: cleanModel,
-      tokens
+      tokens,
+      grounding: groundingMetadata
     };
   } catch (err) {
     clearTimeout(timeoutId);
@@ -644,6 +661,9 @@ export async function executeCascadeGeneration({
   geminiApiKey,
   openRouterApiKey,
   aiProviderMode = 'cascade',
+  useWebSearch = false,
+  webQuery,
+  sourceUrl,
   onLog
 }) {
   const queue = buildCascadeCandidateQueue({
@@ -662,6 +682,41 @@ export async function executeCascadeGeneration({
     };
   }
 
+  // Pre-fetch live web search or scrape target URL if requested
+  let enrichedUserPrompt = userPrompt;
+  let webSources = [];
+
+  if (sourceUrl && typeof sourceUrl === 'string' && sourceUrl.startsWith('http')) {
+    try {
+      if (onLog) onLog(`Парсинг целевого URL: ${sourceUrl}...`);
+      const parsedUrl = await parseUrlContent(sourceUrl);
+      if (parsedUrl.ok) {
+        const urlBlock = formatUrlContentForPrompt(parsedUrl);
+        enrichedUserPrompt = `${urlBlock}\n\n${userPrompt}`;
+        webSources.push({
+          title: parsedUrl.title,
+          url: parsedUrl.url,
+          snippet: parsedUrl.description || parsedUrl.text.slice(0, 160)
+        });
+      }
+    } catch (e) {
+      console.warn('[AI CASCADE] Error parsing sourceUrl:', e.message);
+    }
+  } else if (useWebSearch) {
+    try {
+      const q = webQuery || userPrompt.replace(/[^\w\s\u0400-\u04FF]/gi, ' ').trim().slice(0, 80);
+      if (onLog) onLog(`Живой веб-поиск по запросу: "${q}"...`);
+      const searchResults = await searchWeb(q, 4);
+      if (searchResults && searchResults.length > 0) {
+        const searchBlock = formatSearchResultsForPrompt(searchResults);
+        enrichedUserPrompt = `${searchBlock}\n\n${userPrompt}`;
+        webSources = searchResults;
+      }
+    } catch (e) {
+      console.warn('[AI CASCADE] Error searching web:', e.message);
+    }
+  }
+
   const attemptTrail = [];
   let preferredErrorReason = '';
 
@@ -676,7 +731,8 @@ export async function executeCascadeGeneration({
           apiKey: geminiApiKey,
           model: candidate.model,
           systemPrompt,
-          userPrompt,
+          userPrompt: enrichedUserPrompt,
+          useWebSearch: Boolean(useWebSearch),
           timeoutMs: 14000,
           parser
         });
@@ -685,7 +741,7 @@ export async function executeCascadeGeneration({
           apiKey: openRouterApiKey,
           model: candidate.model,
           systemPrompt,
-          userPrompt,
+          userPrompt: enrichedUserPrompt,
           timeoutMs: 20000,
           parser
         });
@@ -710,7 +766,9 @@ export async function executeCascadeGeneration({
           generationId: res.generationId,
           cascadeTriggered,
           attemptTrail,
-          message
+          message,
+          webSources,
+          grounding: res.grounding || null
         };
       }
 

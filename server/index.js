@@ -17,6 +17,7 @@ import {
   GEMINI_CASCADE_MODELS,
   OPENROUTER_FREE_CASCADE_MODELS
 } from './aiService.js';
+import { searchWeb, parseUrlContent } from './webParser.js';
 
 dotenv.config();
 
@@ -124,6 +125,34 @@ app.post('/api/trends', (req, res) => {
   res.status(201).json(newTrend);
 });
 
+// WEB SEARCH ENDPOINT
+app.post('/api/web/search', async (req, res) => {
+  try {
+    const { query, maxResults = 5 } = req.body;
+    if (!query || typeof query !== 'string' || !query.trim()) {
+      return res.status(400).json({ error: 'Поисковый запрос не задан' });
+    }
+    const results = await searchWeb(query.trim(), Number(maxResults) || 5);
+    res.json({ ok: true, query: query.trim(), results });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message, results: [] });
+  }
+});
+
+// WEB URL PARSER ENDPOINT
+app.post('/api/web/parse-url', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+      return res.status(400).json({ error: 'Укажите корректный URL (http:// или https://)' });
+    }
+    const parsed = await parseUrlContent(url);
+    res.json(parsed);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // AI SCAN TRENDS (Dual-Provider Cascade: Gemini Primary -> OpenRouter Fallback -> Local Swiss Safety Net)
 app.post('/api/trends/scan', async (req, res) => {
   const db = getDb();
@@ -135,6 +164,9 @@ app.post('/api/trends/scan', async (req, res) => {
   const defaultOpenRouterModel = (settings.defaultModel?.includes('/') && settings.defaultModel?.includes(':free')) ? settings.defaultModel : 'google/gemma-4-31b-it:free';
   const requestedModel = req.body.model;
   const category = req.body.category || 'all';
+  const useWebSearch = Boolean(req.body.useWebSearch ?? settings.webSearchEnabled ?? true);
+  const webQuery = req.body.query || req.body.webQuery || (category !== 'all' ? `Junior graphic design viral trends ${category} 2026` : 'Junior graphic design portfolio viral trends 2026');
+  const sourceUrl = req.body.url || req.body.sourceUrl;
 
   const systemPrompt = `Ты — топовый виральный продюсер и наставник для НАЧИНАЮЩИХ графических дизайнеров (Junior Graphic Designers), которые активно строят личный бренд, ищут первую работу в студии или первых клиентов на фрилансе.
 Твоя цель: найти 3 ультра-виральных микро-тренда и формата контента для TikTok, Instagram Stories/Reels, Threads и LinkedIn, которые работают именно у новичков (а не у гигантских агентств).
@@ -162,7 +194,9 @@ app.post('/api/trends/scan', async (req, res) => {
   ]
 }`;
 
-  const userPrompt = `Найди 3 свежих виральных формата для начинающего графического дизайнера в категории: ${category}. Только валидный JSON объект со свойством "trends".`;
+  const userPrompt = sourceUrl
+    ? `Проанализируй контент по указанному URL (${sourceUrl}) и выдели 3 ультра-виральных микро-тренда или формата для джуниор-дизайнера. Только валидный JSON объект со свойством "trends".`
+    : `Найди 3 свежих виральных формата для начинающего графического дизайнера в категории: ${category}. Запрос: ${webQuery}. Только валидный JSON объект со свойством "trends".`;
 
   // ==========================================
   // MULTI-MODEL CASCADE SCAN (TRY PREFERRED -> ALL CANDIDATES IN POOL)
@@ -175,17 +209,25 @@ app.post('/api/trends/scan', async (req, res) => {
     geminiApiKey,
     openRouterApiKey,
     aiProviderMode,
+    useWebSearch,
+    webQuery,
+    sourceUrl,
     onLog: msg => console.warn('[AI CASCADE - TRENDS]', msg)
   });
 
   if (cascadeRes.ok && Array.isArray(cascadeRes.data) && cascadeRes.data.length > 0) {
     const uniqueGenerated = cascadeRes.data.filter(item =>
       !db.trends.some(t => t.title.trim().toLowerCase() === (item.title || '').trim().toLowerCase())
-    ).map((item, index) => ({
-      ...item,
-      id: `trend-ai-${Date.now()}-${index}`,
-      dateAdded: new Date().toISOString().split('T')[0]
-    }));
+    ).map((item, index) => {
+      const matchedSource = cascadeRes.webSources?.[index] || cascadeRes.webSources?.[0];
+      return {
+        ...item,
+        id: `trend-ai-${Date.now()}-${index}`,
+        source: matchedSource?.title ? `${item.source || 'Web'} [${matchedSource.title.slice(0, 35)}]` : (item.source || 'Web Search 2026'),
+        sourceUrl: matchedSource?.url || sourceUrl || null,
+        dateAdded: new Date().toISOString().split('T')[0]
+      };
+    });
 
     if (uniqueGenerated.length > 0) {
       db.trends = [...uniqueGenerated, ...db.trends];
@@ -197,6 +239,8 @@ app.post('/api/trends/scan', async (req, res) => {
       live: true,
       provider: cascadeRes.provider,
       modelUsed: cascadeRes.modelUsed,
+      webSources: cascadeRes.webSources || [],
+      grounding: cascadeRes.grounding || null,
       telemetry: {
         provider: cascadeRes.provider,
         status: 200,
@@ -209,7 +253,8 @@ app.post('/api/trends/scan', async (req, res) => {
         isFallback: false,
         cascadeTriggered: cascadeRes.cascadeTriggered,
         duplicatesSkipped: cascadeRes.data.length - uniqueGenerated.length,
-        message: cascadeRes.message
+        message: cascadeRes.message,
+        webGrounded: (cascadeRes.webSources && cascadeRes.webSources.length > 0) || Boolean(cascadeRes.grounding)
       }
     });
   }
@@ -812,7 +857,10 @@ app.post('/api/ai/generate-script', async (req, res) => {
     channels,
     model: requestedModel,
     viralStrategy,
-    preferredProvider
+    preferredProvider,
+    useWebSearch,
+    sourceUrl,
+    webQuery
   } = req.body;
 
   const db = getDb();
@@ -879,6 +927,9 @@ app.post('/api/ai/generate-script', async (req, res) => {
     geminiApiKey,
     openRouterApiKey,
     aiProviderMode,
+    useWebSearch: Boolean(useWebSearch ?? true),
+    sourceUrl,
+    webQuery: webQuery || title || topic,
     onLog: msg => console.warn('[AI CASCADE - SCRIPT]', msg)
   });
 
@@ -888,6 +939,8 @@ app.post('/api/ai/generate-script', async (req, res) => {
       live: true,
       provider: cascadeRes.provider,
       modelUsed: cascadeRes.modelUsed,
+      webSources: cascadeRes.webSources || [],
+      grounding: cascadeRes.grounding || null,
       telemetry: {
         provider: cascadeRes.provider,
         status: 200,
@@ -899,7 +952,8 @@ app.post('/api/ai/generate-script', async (req, res) => {
         live: true,
         isFallback: false,
         cascadeTriggered: cascadeRes.cascadeTriggered,
-        message: cascadeRes.message
+        message: cascadeRes.message,
+        webGrounded: (cascadeRes.webSources && cascadeRes.webSources.length > 0) || Boolean(cascadeRes.grounding)
       }
     });
   }
