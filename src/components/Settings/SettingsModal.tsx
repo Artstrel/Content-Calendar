@@ -145,7 +145,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setIsTestingGemini(true);
     setGeminiTestResult(null);
     try {
-      const modelToTest = formData.defaultGeminiModel || (formData.defaultModel?.includes('gemini') ? formData.defaultModel : 'gemini-2.5-flash');
+      const modelToTest = formData.defaultGeminiModel || (formData.defaultModel?.includes('gemini') ? formData.defaultModel : 'gemini-3.8-flash');
       const res = await testGeminiConnection(formData.geminiApiKey || undefined, modelToTest);
       setGeminiTestResult(res);
     } catch (err: any) {
@@ -165,7 +165,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setIsTestingOpenRouter(true);
     setOpenRouterTestResult(null);
     try {
-      const res = await testOpenRouterConnection(formData.openRouterApiKey || undefined, formData.defaultModel);
+      const modelToTest = (formData.defaultModel?.includes('/') && formData.defaultModel?.includes(':free'))
+        ? formData.defaultModel
+        : 'google/gemma-4-31b-it:free';
+      const res = await testOpenRouterConnection(formData.openRouterApiKey || undefined, modelToTest);
       setOpenRouterTestResult(res);
     } catch (err: any) {
       setOpenRouterTestResult({

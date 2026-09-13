@@ -268,7 +268,7 @@ export async function clientCallGemini({
 // DIRECT OPENROUTER CALL FROM BROWSER
 export async function clientCallOpenRouter({
   apiKey,
-  model = 'openrouter/free',
+  model = 'google/gemma-4-31b-it:free',
   systemPrompt,
   userPrompt,
   timeoutMs = 35000,
@@ -292,6 +292,12 @@ export async function clientCallOpenRouter({
     };
   }
 
+  // Ensure model is strictly a free model and never a Gemini or paid model
+  let effectiveModel = model || 'google/gemma-4-31b-it:free';
+  if (effectiveModel.includes('gemini') || effectiveModel.includes('claude') || effectiveModel.includes('gpt-4')) {
+    effectiveModel = 'google/gemma-4-31b-it:free';
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -305,7 +311,7 @@ export async function clientCallOpenRouter({
         'X-Title': 'Swiss Content Calendar'
       },
       body: JSON.stringify({
-        model,
+        model: effectiveModel,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -406,7 +412,12 @@ export async function clientTestGeminiConnection(apiKey?: string, model?: string
 export async function clientTestOpenRouterConnection(apiKey?: string, model?: string): Promise<AiTestConnectionResult> {
   const settings = readLocalSettings();
   const effectiveKey = apiKey || settings.openRouterApiKey;
-  const effectiveModel = model || settings.defaultModel || 'openrouter/free';
+  let effectiveModel = model;
+  if (!effectiveModel || effectiveModel.includes('gemini') || effectiveModel.includes('claude') || effectiveModel.includes('gpt')) {
+    effectiveModel = (settings.defaultModel?.includes('/') && settings.defaultModel?.includes(':free'))
+      ? settings.defaultModel
+      : 'google/gemma-4-31b-it:free';
+  }
 
   if (!effectiveKey) {
     return {
@@ -532,9 +543,12 @@ export async function clientScanTrendsAI(category = 'all', model?: string): Prom
 
   // 2. Try OpenRouter
   if (openRouterKey && (!settings.aiProviderMode || settings.aiProviderMode !== 'gemini_only')) {
+    const openRouterModel = (requestedModel.includes('/') && requestedModel.includes(':free'))
+      ? requestedModel
+      : 'google/gemma-4-31b-it:free';
     const orRes = await clientCallOpenRouter({
       apiKey: openRouterKey,
-      model: requestedModel.includes('openrouter') || requestedModel.includes('/') ? requestedModel : 'openrouter/free',
+      model: openRouterModel,
       systemPrompt,
       userPrompt,
       parser: robustExtractTrendsJson
@@ -675,9 +689,12 @@ export async function clientGenerateScriptAI(params: {
 
   // 2. Try OpenRouter
   if (openRouterKey && (!settings.aiProviderMode || settings.aiProviderMode !== 'gemini_only')) {
+    const openRouterModel = (requestedModel.includes('/') && requestedModel.includes(':free'))
+      ? requestedModel
+      : 'google/gemma-4-31b-it:free';
     const res = await clientCallOpenRouter({
       apiKey: openRouterKey,
-      model: requestedModel.includes('openrouter') || requestedModel.includes('/') ? requestedModel : 'openrouter/free',
+      model: openRouterModel,
       systemPrompt,
       userPrompt
     });

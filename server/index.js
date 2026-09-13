@@ -129,7 +129,7 @@ app.post('/api/trends/scan', async (req, res) => {
   const openRouterApiKey = settings.openRouterApiKey || process.env.OPENROUTER_API_KEY;
   const aiProviderMode = settings.aiProviderMode || 'cascade';
   const defaultGeminiModel = settings.defaultGeminiModel || 'gemini-3.8-flash';
-  const defaultOpenRouterModel = settings.defaultModel || 'openrouter/free';
+  const defaultOpenRouterModel = (settings.defaultModel?.includes('/') && settings.defaultModel?.includes(':free')) ? settings.defaultModel : 'google/gemma-4-31b-it:free';
   const requestedModel = req.body.model;
   const category = req.body.category || 'all';
 
@@ -247,7 +247,7 @@ app.post('/api/trends/scan', async (req, res) => {
     openRouterTelemetry.attempted = true;
     let openRouterModel = requestedModel && !requestedModel.includes('gemini')
       ? requestedModel
-      : (defaultOpenRouterModel && !defaultOpenRouterModel.includes('gemini') ? defaultOpenRouterModel : 'openrouter/free');
+      : (defaultOpenRouterModel && !defaultOpenRouterModel.includes('gemini') ? defaultOpenRouterModel : 'google/gemma-4-31b-it:free');
 
     const openRouterRes = await callOpenRouter({
       apiKey: openRouterApiKey,
@@ -571,7 +571,12 @@ app.post('/api/ai/test-gemini', async (req, res) => {
 app.post('/api/ai/test-openrouter', async (req, res) => {
   const db = getDb();
   const apiKey = req.body.apiKey || db.settings?.openRouterApiKey || process.env.OPENROUTER_API_KEY;
-  const model = req.body.model || db.settings?.defaultModel || 'openrouter/free';
+  let model = req.body.model;
+  if (!model || model.includes('gemini')) {
+    model = (db.settings?.defaultModel?.includes('/') && db.settings?.defaultModel?.includes(':free'))
+      ? db.settings.defaultModel
+      : 'google/gemma-4-31b-it:free';
+  }
   const result = await testOpenRouterPing(apiKey, model);
   res.json(result);
 });
@@ -599,7 +604,8 @@ app.post('/api/ai/test-connection', async (req, res) => {
   }
 
   if (provider === 'openrouter') {
-    const openRouterTest = await testOpenRouterPing(openRouterKey, req.body.model || 'openrouter/free');
+    const testModel = (req.body.model?.includes('/') && req.body.model?.includes(':free')) ? req.body.model : 'google/gemma-4-31b-it:free';
+    const openRouterTest = await testOpenRouterPing(openRouterKey, testModel);
     return res.json({
       provider: 'openrouter',
       connected: openRouterTest.connected,
@@ -617,7 +623,7 @@ app.post('/api/ai/test-connection', async (req, res) => {
   // Combined Cascade Test
   const [geminiResult, openRouterResult] = await Promise.all([
     testGeminiPing(geminiKey, 'gemini-3.8-flash'),
-    testOpenRouterPing(openRouterKey, 'openrouter/free')
+    testOpenRouterPing(openRouterKey, 'google/gemma-4-31b-it:free')
   ]);
 
   const cascadeActive = geminiResult.connected || openRouterResult.connected;
@@ -781,7 +787,7 @@ app.post('/api/ai/generate-script', async (req, res) => {
     openRouterTelemetry.attempted = true;
     let openRouterModel = requestedModel && !requestedModel.includes('gemini')
       ? requestedModel
-      : (settings.defaultOpenRouterModel || (!settings.defaultModel?.includes('gemini') ? settings.defaultModel : 'openrouter/free'));
+      : (settings.defaultOpenRouterModel || (!settings.defaultModel?.includes('gemini') ? settings.defaultModel : 'google/gemma-4-31b-it:free'));
 
     const openRouterRes = await callOpenRouter({
       apiKey: openRouterApiKey,

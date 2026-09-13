@@ -300,7 +300,7 @@ export async function callGemini({
  */
 export async function callOpenRouter({
   apiKey,
-  model = 'openrouter/free',
+  model = 'google/gemma-4-31b-it:free',
   systemPrompt,
   userPrompt,
   timeoutMs = 35000,
@@ -317,9 +317,9 @@ export async function callOpenRouter({
     };
   }
 
-  let effectiveModel = model;
-  if (effectiveModel.includes('llama-3.3-70b-instruct:free') || effectiveModel.includes('gemini-2.0-flash-exp:free')) {
-    effectiveModel = 'openrouter/free';
+  let effectiveModel = model || 'google/gemma-4-31b-it:free';
+  if (effectiveModel.includes('gemini') || effectiveModel.includes('claude') || effectiveModel.includes('gpt')) {
+    effectiveModel = 'google/gemma-4-31b-it:free';
   }
 
   const controller = new AbortController();
@@ -472,7 +472,7 @@ export async function testGeminiPing(apiKey, model = 'gemini-3.8-flash') {
 /**
  * Quick Ping Sandbox Test for OpenRouter
  */
-export async function testOpenRouterPing(apiKey, model = 'openrouter/free') {
+export async function testOpenRouterPing(apiKey, model = 'google/gemma-4-31b-it:free') {
   const startTime = Date.now();
   if (!apiKey || apiKey.trim() === '') {
     return {
@@ -485,9 +485,9 @@ export async function testOpenRouterPing(apiKey, model = 'openrouter/free') {
     };
   }
 
-  let effectiveModel = model;
-  if (effectiveModel.includes('llama-3.3-70b-instruct:free')) {
-    effectiveModel = 'openrouter/free';
+  let effectiveModel = model || 'google/gemma-4-31b-it:free';
+  if (effectiveModel.includes('gemini') || effectiveModel.includes('claude') || effectiveModel.includes('gpt')) {
+    effectiveModel = 'google/gemma-4-31b-it:free';
   }
 
   try {

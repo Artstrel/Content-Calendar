@@ -116,14 +116,20 @@ export const INITIAL_SETTINGS: AppSettings = {
   geminiApiKey: '',
   openRouterApiKey: '',
   aiProviderMode: 'cascade',
-  defaultModel: 'gemini-2.5-flash',
-  defaultGeminiModel: 'gemini-2.5-flash',
+  defaultModel: 'gemini-3.8-flash',
+  defaultGeminiModel: 'gemini-3.8-flash',
   availableModels: [
-    { id: 'gemini-2.5-flash', name: '✨ Google Gemini 2.5 Flash (Рекомендуемая // Баланс и скорость)' },
-    { id: 'gemini-2.5-pro', name: '✨ Google Gemini 2.5 Pro (Глубокий reasoning // Сложные задачи)' },
-    { id: 'gemini-2.5-flash-lite', name: '✨ Google Gemini 2.5 Flash-Lite (Экономия квоты)' },
-    { id: 'gemini-2.0-flash', name: '✨ Google Gemini 2.0 Flash (Стабильная версия)' },
-    { id: 'openrouter/free', name: '⚡️ OpenRouter Free Router (Резерв // Авто-подбор свободной модели)' },
+    // Google Gemini (Актуальные официальные модели из Google AI Studio docs)
+    { id: 'gemini-3.8-flash', name: '✨ Google Gemini 3.8 Flash (Новейшая флагманская 3.8 // AI Studio)' },
+    { id: 'gemini-3.7-flash', name: '✨ Google Gemini 3.7 Flash (Флагманская скорость и рассуждения)' },
+    { id: 'gemini-3.5-flash', name: '✨ Google Gemini 3.5 Flash (Баланс скорости и точности)' },
+    { id: 'gemini-3.5-flash-lite', name: '✨ Google Gemini 3.5 Flash-Lite (Экономия квоты // Ультра-быстрый)' },
+    { id: 'gemini-3.1-pro-preview', name: '✨ Google Gemini 3.1 Pro (Глубокий reasoning // Сложный контент)' },
+    { id: 'gemini-2.5-flash', name: '✨ Google Gemini 2.5 Flash (Стабильная версия 2.5 // Рекомендуемая)' },
+    { id: 'gemini-2.5-pro', name: '✨ Google Gemini 2.5 Pro (Продвинутая логика 2.5)' },
+    { id: 'gemini-2.5-flash-lite', name: '✨ Google Gemini 2.5 Flash-Lite (Легковесная 2.5)' },
+
+    // OpenRouter (100% бесплатные модели / Free Tier / 0$ Prompt / 0$ Completion)
     { id: 'google/gemma-4-31b-it:free', name: '⚡️ Google Gemma 4 31B (OpenRouter Free // 262K контекст)' },
     { id: 'google/gemma-4-26b-a4b-it:free', name: '⚡️ Google Gemma 4 26B A4B (OpenRouter Free // Быстрый MoE)' },
     { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: '⚡️ NVIDIA Nemotron 3 Ultra (OpenRouter Free // 550B MoE, 1M контекст)' },
@@ -136,8 +142,7 @@ export const INITIAL_SETTINGS: AppSettings = {
     { id: 'inclusionai/ling-3.0-flash-vl:free', name: '⚡️ Ling 3.0 Flash VL (OpenRouter Free // 124B MoE)' },
     { id: 'dots-studio/dots-3-note-preview:free', name: '⚡️ Dots Studio Dots3-Note (OpenRouter Free // 512K контекст)' },
     { id: 'poolside/laguna-xs-2.1:free', name: '⚡️ Poolside Laguna XS 2.1 (OpenRouter Free // Код и текст)' },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (Премиум OpenRouter)' },
-    { id: 'openai/gpt-4o', name: 'GPT-4o (Премиум OpenRouter)' }
+    { id: 'openrouter/free', name: '⚡️ OpenRouter Free Router (Резерв // Авто-подбор свободной модели)' }
   ],
   telegramBotToken: '',
   telegramChatId: '',
@@ -264,15 +269,23 @@ export function readLocalSettings(): AppSettings {
       return { ...INITIAL_SETTINGS };
     }
     const parsed = JSON.parse(raw);
-    // Ensure all curated models (including new free OpenRouter models) are always present
+    // Ensure all curated models are present and eliminate paid or shut down models
     const customModels = (parsed.availableModels || []).filter(
-      (m: any) => !INITIAL_SETTINGS.availableModels.some(im => im.id === m.id)
+      (m: any) => 
+        !INITIAL_SETTINGS.availableModels.some(im => im.id === m.id) &&
+        !m.id.includes('claude') &&
+        !m.id.includes('gpt-4') &&
+        !m.id.includes('gemini-2.0')
     );
     const availableModels = [
       ...INITIAL_SETTINGS.availableModels,
       ...customModels
     ];
-    return { ...INITIAL_SETTINGS, ...parsed, availableModels };
+    let defaultModel = parsed.defaultModel;
+    if (!defaultModel || defaultModel.includes('claude') || defaultModel.includes('gpt-4') || defaultModel.includes('gemini-2.0')) {
+      defaultModel = INITIAL_SETTINGS.defaultModel;
+    }
+    return { ...INITIAL_SETTINGS, ...parsed, defaultModel, availableModels };
   } catch {
     return { ...INITIAL_SETTINGS };
   }
