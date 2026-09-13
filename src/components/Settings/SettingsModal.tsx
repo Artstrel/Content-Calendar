@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { AppSettings, AiTestConnectionResult } from '../../types/index.ts';
-import { updateSettings, testOpenRouterConnection, testGeminiConnection, testCascadeConnection } from '../../services/api.ts';
-import { Key, Shield, Check, ExternalLink, Loader2, Terminal, Sparkles, RefreshCw } from 'lucide-react';
+import { 
+  updateSettings, 
+  testOpenRouterConnection, 
+  testGeminiConnection, 
+  testCascadeConnection,
+  testSupabaseConnection,
+  exportDatabase,
+  importDatabase
+} from '../../services/api.ts';
+import { Key, Shield, Check, ExternalLink, Loader2, Terminal, Sparkles, RefreshCw, Database, Download, Upload } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -16,28 +24,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onSettingsSaved
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<Partial<AppSettings>>({
-    geminiApiKey: '',
-    openRouterApiKey: '',
+    supabaseUrl: settings.supabaseUrl || '',
+    supabaseAnonKey: settings.supabaseAnonKey || '',
+    geminiApiKey: settings.geminiApiKey || '',
+    openRouterApiKey: settings.openRouterApiKey || '',
     aiProviderMode: settings.aiProviderMode || 'cascade',
     defaultModel: settings.defaultModel || 'gemini-3.8-flash',
-    telegramBotToken: '',
+    telegramBotToken: settings.telegramBotToken || '',
     telegramChatId: settings.telegramChatId || '',
     blueskyIdentifier: settings.blueskyIdentifier || '',
-    blueskyAppPassword: '',
-    xApiKey: '',
-    xAccessToken: '',
-    instagramAccessToken: '',
+    blueskyAppPassword: settings.blueskyAppPassword || '',
+    xApiKey: settings.xApiKey || '',
+    xAccessToken: settings.xAccessToken || '',
+    instagramAccessToken: settings.instagramAccessToken || '',
     instagramAccountId: settings.instagramAccountId || '',
-    tiktokAccessToken: '',
-    pinterestAccessToken: '',
-    linkedinAccessToken: '',
-    threadsAccessToken: '',
+    tiktokAccessToken: settings.tiktokAccessToken || '',
+    pinterestAccessToken: settings.pinterestAccessToken || '',
+    linkedinAccessToken: settings.linkedinAccessToken || '',
+    threadsAccessToken: settings.threadsAccessToken || '',
     simulationMode: settings.simulationMode !== false
   });
 
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [supabaseTestResult, setSupabaseTestResult] = useState<{ success: boolean; message: string; latencyMs: number } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [isTestingGemini, setIsTestingGemini] = useState(false);
   const [isTestingOpenRouter, setIsTestingOpenRouter] = useState(false);
   const [isTestingCascade, setIsTestingCascade] = useState(false);
@@ -63,6 +78,66 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       alert('Ошибка при сохранении настроек');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleTestSupabase = async () => {
+    if (!formData.supabaseUrl || !formData.supabaseAnonKey) {
+      setSupabaseTestResult({
+        success: false,
+        latencyMs: 0,
+        message: 'Укажите URL проекта Supabase и anon-ключ перед проверкой'
+      });
+      return;
+    }
+    setIsTestingSupabase(true);
+    setSupabaseTestResult(null);
+    try {
+      const res = await testSupabaseConnection(formData.supabaseUrl, formData.supabaseAnonKey);
+      setSupabaseTestResult(res);
+    } catch (err: any) {
+      setSupabaseTestResult({
+        success: false,
+        latencyMs: 0,
+        message: err.message || 'Сетевая ошибка'
+      });
+    } finally {
+      setIsTestingSupabase(false);
+    }
+  };
+
+  const handleExportDb = async () => {
+    setIsExporting(true);
+    try {
+      const jsonStr = await exportDatabase();
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `swiss-content-calendar-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Ошибка экспорта базы: ${err.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImportDb = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImporting(true);
+    try {
+      const text = await file.text();
+      const res = await importDatabase(text);
+      alert(`База успешно импортирована!\nЗагружено постов: ${res.postsCount}\nЗагружено трендов: ${res.trendsCount}`);
+      onSettingsSaved();
+    } catch (err: any) {
+      alert(`Ошибка импорта: ${err.message}`);
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -168,6 +243,133 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 />
                 {formData.simulationMode ? 'ВКЛЮЧЕН' : 'ОТКЛЮЧЕН'}
               </label>
+            </div>
+
+            {/* Section 0: CLOUD DATABASE (SUPABASE & BACKUP) */}
+            <div style={{ marginBottom: '28px', border: '1px solid var(--border-medium)', padding: '16px', backgroundColor: 'var(--bg-surface-elevated)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Database size={16} color="#33cc66" />
+                  <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
+                    00 // ОБЛАЧНАЯ БАЗА ДАННЫХ (SUPABASE & BACKUP)
+                  </h4>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="swiss-btn swiss-btn-sm"
+                    style={{ fontSize: '11px', borderColor: '#33cc66', color: '#33cc66' }}
+                    onClick={handleTestSupabase}
+                    disabled={isTestingSupabase}
+                  >
+                    {isTestingSupabase ? (
+                      <>
+                        <Loader2 size={12} className="spin" />
+                        ТЕСТ ПОДКЛЮЧЕНИЯ...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={12} />
+                        ПРОВЕРИТЬ SUPABASE
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.5 }}>
+                Для надежного хранения данных на <strong>GitHub Pages</strong> подключите бесплатный облачный проект <strong>Supabase (PostgreSQL)</strong>. Если параметры не заданы, данные хранятся автономно в вашем браузере (LocalStorage). Ваши ключи сохраняются исключительно на вашем устройстве.
+              </div>
+
+              {/* Supabase Test Result Banner */}
+              {supabaseTestResult && (
+                <div style={{
+                  marginBottom: '16px',
+                  padding: '12px 16px',
+                  backgroundColor: supabaseTestResult.success ? '#0d1f12' : '#260e0e',
+                  border: `1px solid ${supabaseTestResult.success ? '#33cc66' : '#ff4444'}`,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px'
+                }}>
+                  <div style={{ fontWeight: 800, color: supabaseTestResult.success ? '#33cc66' : '#ff4444', marginBottom: '4px' }}>
+                    {supabaseTestResult.success ? '✓ ОБЛАЧНАЯ БАЗА ДАННЫХ ПОДКЛЮЧЕНА' : '✕ ОШИБКА ПОДКЛЮЧЕНИЯ К SUPABASE'}
+                  </div>
+                  <div style={{ color: 'var(--text-primary)' }}>
+                    {supabaseTestResult.message}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div className="swiss-form-group">
+                  <label className="swiss-label">
+                    Supabase Project URL
+                  </label>
+                  <input
+                    type="url"
+                    className="swiss-input"
+                    placeholder="https://xyzcompany.supabase.co"
+                    value={formData.supabaseUrl}
+                    onChange={e => setFormData({ ...formData, supabaseUrl: e.target.value })}
+                  />
+                </div>
+                <div className="swiss-form-group">
+                  <label className="swiss-label">
+                    Supabase Anon Public Key {settings.hasSupabaseKey && <span style={{ color: '#33cc66' }}>[Задан]</span>}
+                  </label>
+                  <input
+                    type="password"
+                    className="swiss-input"
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    value={formData.supabaseAnonKey}
+                    onChange={e => setFormData({ ...formData, supabaseAnonKey: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Database Export & Import Tools */}
+              <div style={{ 
+                borderTop: '1px solid var(--border-subtle)', 
+                paddingTop: '12px', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                  Резервное копирование: сохраните полный снимок постов и трендов в файл JSON
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    style={{ display: 'none' }} 
+                    accept=".json" 
+                    onChange={handleImportDb} 
+                  />
+                  <button
+                    type="button"
+                    className="swiss-btn swiss-btn-sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isImporting}
+                    style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Upload size={12} />
+                    {isImporting ? 'ИМПОРТ...' : 'ИМПОРТ ИЗ JSON'}
+                  </button>
+                  <button
+                    type="button"
+                    className="swiss-btn swiss-btn-sm"
+                    onClick={handleExportDb}
+                    disabled={isExporting}
+                    style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Download size={12} />
+                    {isExporting ? 'ЭКСПОРТ...' : 'ЭКСПОРТ ВСЕЙ БАЗЫ (JSON)'}
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Section 1: DUAL AI ENGINES (GEMINI & OPENROUTER CASCADE) */}

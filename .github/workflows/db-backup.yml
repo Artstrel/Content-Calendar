@@ -1,0 +1,51 @@
+name: Database Health & Backup Snapshot
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # Every Monday at 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Причина ручного запуска бэкапа'
+        required: false
+        default: 'Ручной запуск'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Schema and Templates
+        run: |
+          echo "Проверка целостности SQL схемы Supabase и шаблонов данных..."
+          test -f supabase/schema.sql && echo "✓ supabase/schema.sql существует"
+          node -e "const fs = require('fs'); const db = JSON.parse(fs.readFileSync('server/data/db.json')); console.log('Постов в шаблоне:', db.posts.length); console.log('Трендов в шаблоне:', db.trends.length);"
+
+      - name: Create Backup Snapshot
+        run: |
+          mkdir -p backup
+          TIMESTAMP=$(date +'%Y-%m-%d_%H-%M-%S')
+          cp server/data/db.json backup/db-snapshot-${TIMESTAMP}.json
+          cp supabase/schema.sql backup/schema-${TIMESTAMP}.sql
+          echo "Снимок базы данных создан ${TIMESTAMP}" > backup/manifest.txt
+
+      - name: Upload Backup Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-backup-snapshot
+          path: backup/
+          retention-days: 30

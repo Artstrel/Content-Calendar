@@ -91,6 +91,14 @@ export interface AiModelOption {
 }
 
 export interface AppSettings {
+  // Database & Cloud configuration
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
+  supabaseAnonKeyMasked?: string;
+  hasSupabaseKey?: boolean;
+  dbMode?: 'supabase' | 'local_api' | 'browser';
+  customApiUrl?: string;
+
   geminiApiKey?: string;
   geminiApiKeyMasked?: string;
   hasGeminiKey?: boolean;
