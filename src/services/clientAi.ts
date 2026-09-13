@@ -62,10 +62,13 @@ export function robustExtractJson(rawText: string | null | undefined): any {
 
   const candidate = lastBrace !== -1 ? cleaned.slice(firstBrace, lastBrace + 1) : cleaned.slice(firstBrace);
 
+  let parsedFallback: any = null;
+
   // 5. Try standard parse
   try {
     const parsed = JSON.parse(candidate);
     if (isValidStructure(parsed)) return parsed;
+    parsedFallback = parsed;
   } catch {
     // Continue to repair
   }
@@ -77,11 +80,36 @@ export function robustExtractJson(rawText: string | null | undefined): any {
       .replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F]/g, '');
     const parsed = JSON.parse(repaired);
     if (isValidStructure(parsed)) return parsed;
+    if (!parsedFallback) parsedFallback = parsed;
   } catch {
     // Continue to regex extraction
   }
 
-  return extractByRegex(cleaned);
+  const regexResult = extractByRegex(cleaned);
+  if (regexResult) return regexResult;
+
+  return parsedFallback;
+}
+
+function parsePingResponse(rawText: string | null | undefined): any {
+  if (!rawText) return null;
+  const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const braceMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (braceMatch) {
+      try {
+        return JSON.parse(braceMatch[0]);
+      } catch {
+        // Continue
+      }
+    }
+    if (cleaned.length > 0) {
+      return { status: 'ok', message: cleaned };
+    }
+    return null;
+  }
 }
 
 function isValidStructure(obj: any): boolean {
@@ -340,9 +368,11 @@ export async function clientCallOpenRouter({
 }
 
 // TEST CONNECTION FUNCTIONS
-export async function clientTestGeminiConnection(apiKey?: string, model = 'gemini-3.8-flash'): Promise<AiTestConnectionResult> {
+export async function clientTestGeminiConnection(apiKey?: string, model?: string): Promise<AiTestConnectionResult> {
   const settings = readLocalSettings();
   const effectiveKey = apiKey || settings.geminiApiKey;
+  const effectiveModel = model || settings.defaultGeminiModel || settings.defaultModel || 'gemini-2.5-flash';
+
   if (!effectiveKey) {
     return {
       connected: false,
@@ -355,10 +385,11 @@ export async function clientTestGeminiConnection(apiKey?: string, model = 'gemin
 
   const res = await clientCallGemini({
     apiKey: effectiveKey,
-    model,
+    model: effectiveModel,
     systemPrompt: 'Отвечай только валидным JSON: {"status": "ok", "message": "Swiss AI Connected"}',
     userPrompt: 'Пинг. Проверь связь с Google AI Studio.',
-    timeoutMs: 12000
+    timeoutMs: 12000,
+    parser: parsePingResponse
   });
 
   return {
@@ -372,9 +403,11 @@ export async function clientTestGeminiConnection(apiKey?: string, model = 'gemin
   };
 }
 
-export async function clientTestOpenRouterConnection(apiKey?: string, model = 'openrouter/free'): Promise<AiTestConnectionResult> {
+export async function clientTestOpenRouterConnection(apiKey?: string, model?: string): Promise<AiTestConnectionResult> {
   const settings = readLocalSettings();
   const effectiveKey = apiKey || settings.openRouterApiKey;
+  const effectiveModel = model || settings.defaultModel || 'openrouter/free';
+
   if (!effectiveKey) {
     return {
       connected: false,
@@ -387,10 +420,11 @@ export async function clientTestOpenRouterConnection(apiKey?: string, model = 'o
 
   const res = await clientCallOpenRouter({
     apiKey: effectiveKey,
-    model,
+    model: effectiveModel,
     systemPrompt: 'Отвечай только валидным JSON: {"status": "ok", "message": "OpenRouter Connected"}',
     userPrompt: 'Ping OpenRouter.',
-    timeoutMs: 15000
+    timeoutMs: 15000,
+    parser: parsePingResponse
   });
 
   return {

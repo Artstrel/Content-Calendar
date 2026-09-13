@@ -116,21 +116,26 @@ export const INITIAL_SETTINGS: AppSettings = {
   geminiApiKey: '',
   openRouterApiKey: '',
   aiProviderMode: 'cascade',
-  defaultModel: 'gemini-3.8-flash',
-  defaultGeminiModel: 'gemini-3.8-flash',
+  defaultModel: 'gemini-2.5-flash',
+  defaultGeminiModel: 'gemini-2.5-flash',
   availableModels: [
-    { id: 'gemini-3.8-flash', name: '✨ Google Gemini 3.8 Flash (Новейшая флагманская // AI Studio)' },
-    { id: 'gemini-3.5-flash', name: '✨ Google Gemini 3.5 Flash (Скорость и рассуждения)' },
-    { id: 'gemini-2.5-flash', name: '✨ Google Gemini 2.5 Flash (Рекомендуемая 2.5 // Баланс)' },
+    { id: 'gemini-2.5-flash', name: '✨ Google Gemini 2.5 Flash (Рекомендуемая // Баланс и скорость)' },
+    { id: 'gemini-2.5-pro', name: '✨ Google Gemini 2.5 Pro (Глубокий reasoning // Сложные задачи)' },
     { id: 'gemini-2.5-flash-lite', name: '✨ Google Gemini 2.5 Flash-Lite (Экономия квоты)' },
-    { id: 'gemini-2.5-pro', name: '✨ Google Gemini 2.5 Pro (Глубокий reasoning)' },
     { id: 'gemini-2.0-flash', name: '✨ Google Gemini 2.0 Flash (Стабильная версия)' },
-    { id: 'openrouter/free', name: '⚡️ OpenRouter Free Router (Резерв // Авто-подбор модели)' },
-    { id: 'nvidia/nemotron-3.5-lightning:free', name: '⚡️ NVIDIA Nemotron 3.5 Lightning (OpenRouter Free)' },
-    { id: 'nex-agi/nex-n2.5-mini:free', name: '⚡️ Nex-N2.5 Mini (OpenRouter Free)' },
-    { id: 'poolside/laguna-xs-2.1:free', name: '⚡️ Poolside Laguna XS 2.1 (OpenRouter Free)' },
-    { id: 'dots-studio/dots-3-note-preview:free', name: '⚡️ Dots Studio Dots3-Note (OpenRouter Free)' },
-    { id: 'inclusionai/ling-3.0-flash-vl:free', name: '⚡️ Ling 3.0 Flash VL (OpenRouter Free)' },
+    { id: 'openrouter/free', name: '⚡️ OpenRouter Free Router (Резерв // Авто-подбор свободной модели)' },
+    { id: 'google/gemma-4-31b-it:free', name: '⚡️ Google Gemma 4 31B (OpenRouter Free // 262K контекст)' },
+    { id: 'google/gemma-4-26b-a4b-it:free', name: '⚡️ Google Gemma 4 26B A4B (OpenRouter Free // Быстрый MoE)' },
+    { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: '⚡️ NVIDIA Nemotron 3 Ultra (OpenRouter Free // 550B MoE, 1M контекст)' },
+    { id: 'nvidia/nemotron-3.5-lightning:free', name: '⚡️ NVIDIA Nemotron 3.5 Lightning (OpenRouter Free // 1M контекст)' },
+    { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: '⚡️ NVIDIA Nemotron 3 Super (OpenRouter Free // 120B MoE)' },
+    { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: '⚡️ NVIDIA Nemotron 3 Nano Omni (OpenRouter Free // 30B reasoning)' },
+    { id: 'nex-agi/nex-n2.5-pro:free', name: '⚡️ Nex-N2.5 Pro (OpenRouter Free // Agentic reasoning)' },
+    { id: 'nex-agi/nex-n2.5-mini:free', name: '⚡️ Nex-N2.5 Mini (OpenRouter Free // Быстрый агент)' },
+    { id: 'thinkingmachines/inkling:free', name: '⚡️ Thinking Machines Inkling (OpenRouter Free // 1M контекст)' },
+    { id: 'inclusionai/ling-3.0-flash-vl:free', name: '⚡️ Ling 3.0 Flash VL (OpenRouter Free // 124B MoE)' },
+    { id: 'dots-studio/dots-3-note-preview:free', name: '⚡️ Dots Studio Dots3-Note (OpenRouter Free // 512K контекст)' },
+    { id: 'poolside/laguna-xs-2.1:free', name: '⚡️ Poolside Laguna XS 2.1 (OpenRouter Free // Код и текст)' },
     { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (Премиум OpenRouter)' },
     { id: 'openai/gpt-4o', name: 'GPT-4o (Премиум OpenRouter)' }
   ],
@@ -188,12 +193,17 @@ export async function testSupabaseConnection(url: string, key: string): Promise<
     const { error } = await client.from('posts').select('id').limit(1);
     const latencyMs = Date.now() - start;
     if (error) {
-      // If table does not exist, return helpful guidance
-      if (error.code === '42P01') {
+      // If table does not exist (42P01 in Postgres or PGRST205 in PostgREST schema cache)
+      if (
+        error.code === '42P01' || 
+        error.code === 'PGRST205' || 
+        error.message?.includes('schema cache') || 
+        error.message?.includes('Could not find the table')
+      ) {
         return {
           success: false,
           latencyMs,
-          message: 'Подключение к проекту Supabase успешно, но таблицы еще не созданы. Выполните SQL-скрипт из папки supabase/schema.sql в SQL Editor.'
+          message: 'Подключение к проекту Supabase успешно, но таблицы еще не созданы. Выполните SQL-скрипт из файла supabase/schema.sql в SQL Editor Supabase.'
         };
       }
       return { success: false, latencyMs, message: `Ошибка Supabase: ${error.message} (Код ${error.code})` };
@@ -254,7 +264,15 @@ export function readLocalSettings(): AppSettings {
       return { ...INITIAL_SETTINGS };
     }
     const parsed = JSON.parse(raw);
-    return { ...INITIAL_SETTINGS, ...parsed };
+    // Ensure all curated models (including new free OpenRouter models) are always present
+    const customModels = (parsed.availableModels || []).filter(
+      (m: any) => !INITIAL_SETTINGS.availableModels.some(im => im.id === m.id)
+    );
+    const availableModels = [
+      ...INITIAL_SETTINGS.availableModels,
+      ...customModels
+    ];
+    return { ...INITIAL_SETTINGS, ...parsed, availableModels };
   } catch {
     return { ...INITIAL_SETTINGS };
   }

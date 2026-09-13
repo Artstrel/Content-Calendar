@@ -493,27 +493,19 @@
     "geminiApiKey": "",
     "openRouterApiKey": "",
     "aiProviderMode": "cascade",
-    "defaultModel": "gemini-3.8-flash",
+    "defaultModel": "gemini-2.5-flash",
     "availableModels": [
       {
-        "id": "gemini-3.8-flash",
-        "name": "✨ Google Gemini 3.8 Flash (Новейшая флагманская // Документация AI Studio)"
-      },
-      {
-        "id": "gemini-3.5-flash",
-        "name": "✨ Google Gemini 3.5 Flash (Скорость и рассуждения)"
-      },
-      {
         "id": "gemini-2.5-flash",
-        "name": "✨ Google Gemini 2.5 Flash (Рекомендуемая 2.5 // Баланс скорости и логики)"
-      },
-      {
-        "id": "gemini-2.5-flash-lite",
-        "name": "✨ Google Gemini 2.5 Flash-Lite (Экономия квоты // Ультра-быстрый)"
+        "name": "✨ Google Gemini 2.5 Flash (Рекомендуемая // Баланс и скорость)"
       },
       {
         "id": "gemini-2.5-pro",
         "name": "✨ Google Gemini 2.5 Pro (Глубокий reasoning // Сложные задачи)"
+      },
+      {
+        "id": "gemini-2.5-flash-lite",
+        "name": "✨ Google Gemini 2.5 Flash-Lite (Экономия квоты)"
       },
       {
         "id": "gemini-2.0-flash",
@@ -521,27 +513,55 @@
       },
       {
         "id": "openrouter/free",
-        "name": "⚡️ OpenRouter Free Router (Резерв // Авто-подбор активной модели)"
+        "name": "⚡️ OpenRouter Free Router (Резерв // Авто-подбор свободной модели)"
+      },
+      {
+        "id": "google/gemma-4-31b-it:free",
+        "name": "⚡️ Google Gemma 4 31B (OpenRouter Free // 262K контекст)"
+      },
+      {
+        "id": "google/gemma-4-26b-a4b-it:free",
+        "name": "⚡️ Google Gemma 4 26B A4B (OpenRouter Free // Быстрый MoE)"
+      },
+      {
+        "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "name": "⚡️ NVIDIA Nemotron 3 Ultra (OpenRouter Free // 550B MoE, 1M контекст)"
       },
       {
         "id": "nvidia/nemotron-3.5-lightning:free",
-        "name": "⚡️ NVIDIA Nemotron 3.5 Lightning (Резерв OpenRouter // 1M контекст)"
+        "name": "⚡️ NVIDIA Nemotron 3.5 Lightning (OpenRouter Free // 1M контекст)"
+      },
+      {
+        "id": "nvidia/nemotron-3-super-120b-a12b:free",
+        "name": "⚡️ NVIDIA Nemotron 3 Super (OpenRouter Free // 120B MoE)"
+      },
+      {
+        "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "name": "⚡️ NVIDIA Nemotron 3 Nano Omni (OpenRouter Free // 30B reasoning)"
+      },
+      {
+        "id": "nex-agi/nex-n2.5-pro:free",
+        "name": "⚡️ Nex-N2.5 Pro (OpenRouter Free // Agentic reasoning)"
       },
       {
         "id": "nex-agi/nex-n2.5-mini:free",
-        "name": "⚡️ Nex-N2.5 Mini (Резерв OpenRouter // Быстрый отклик)"
+        "name": "⚡️ Nex-N2.5 Mini (OpenRouter Free // Быстрый агент)"
       },
       {
-        "id": "poolside/laguna-xs-2.1:free",
-        "name": "⚡️ Poolside Laguna XS 2.1 (Резерв OpenRouter // Бесплатно)"
-      },
-      {
-        "id": "dots-studio/dots-3-note-preview:free",
-        "name": "⚡️ Dots Studio Dots3-Note (Резерв OpenRouter // 512K контекст)"
+        "id": "thinkingmachines/inkling:free",
+        "name": "⚡️ Thinking Machines Inkling (OpenRouter Free // 1M контекст)"
       },
       {
         "id": "inclusionai/ling-3.0-flash-vl:free",
-        "name": "⚡️ Ling 3.0 Flash VL (Резерв OpenRouter // Скорость)"
+        "name": "⚡️ Ling 3.0 Flash VL (OpenRouter Free // 124B MoE)"
+      },
+      {
+        "id": "dots-studio/dots-3-note-preview:free",
+        "name": "⚡️ Dots Studio Dots3-Note (OpenRouter Free // 512K контекст)"
+      },
+      {
+        "id": "poolside/laguna-xs-2.1:free",
+        "name": "⚡️ Poolside Laguna XS 2.1 (OpenRouter Free // Код и текст)"
       },
       {
         "id": "anthropic/claude-3.5-sonnet",

@@ -145,7 +145,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setIsTestingGemini(true);
     setGeminiTestResult(null);
     try {
-      const res = await testGeminiConnection(formData.geminiApiKey || undefined, 'gemini-3.8-flash');
+      const modelToTest = formData.defaultGeminiModel || (formData.defaultModel?.includes('gemini') ? formData.defaultModel : 'gemini-2.5-flash');
+      const res = await testGeminiConnection(formData.geminiApiKey || undefined, modelToTest);
       setGeminiTestResult(res);
     } catch (err: any) {
       setGeminiTestResult({
