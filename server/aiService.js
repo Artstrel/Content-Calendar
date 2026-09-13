@@ -801,6 +801,7 @@ export async function executeCascadeGeneration({
     ok: false,
     status: 500,
     error: `Все опрошенные модели (${attemptTrail.length} шт.) вернули ошибку.`,
-    attemptTrail
+    attemptTrail,
+    webSources
   };
 }

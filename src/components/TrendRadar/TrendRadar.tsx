@@ -64,7 +64,21 @@ export const TrendRadar: React.FC<TrendRadarProps> = ({
         url: params?.url || (webUrl.trim() ? webUrl.trim() : undefined),
         useWebSearch: useWebGrounding
       });
+
+      let addedCount = 0;
+      if (res.trends && Array.isArray(res.trends) && res.trends.length > 0) {
+        for (const t of res.trends) {
+          const saved = await createTrend(t);
+          if (!saved.alreadyExisted) {
+            addedCount++;
+          }
+        }
+      }
+
       if (res.telemetry) {
+        if (addedCount > 0) {
+          res.telemetry.message = `${res.telemetry.message ? res.telemetry.message + ' ' : ''}[+${addedCount} НОВЫХ В РАДАРЕ]`;
+        }
         setScanTelemetry(res.telemetry);
       }
       if (res.webSources && res.webSources.length > 0) {

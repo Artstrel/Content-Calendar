@@ -734,7 +734,8 @@ export async function clientExecuteCascadeGeneration({
     latencyMs: 0,
     cascadeTriggered: true,
     error: `Все опрошенные модели (${attemptTrail.length} шт.) вернули ошибку.`,
-    attemptTrail
+    attemptTrail,
+    webSources
   };
 }
 
@@ -913,46 +914,106 @@ export async function clientScanTrendsAI(
     };
   }
 
-  // Fallback to Local Swiss Generator
+  // Fallback: If Web Parser obtained sources from URL or search, convert THEM directly into trend cards!
+  if (cascadeRes.webSources && cascadeRes.webSources.length > 0) {
+    const webTrends = cascadeRes.webSources.slice(0, 4).map((source: any, idx: number) => {
+      let hostname = 'Web';
+      if (source.url) {
+        try { hostname = new URL(source.url).hostname.replace(/^www\./, ''); } catch {}
+      }
+      const categoryLabelMap: Record<string, string> = {
+        typography: 'Типографика',
+        branding: 'Брендинг',
+        '3d': '3D & Пространство',
+        motion: 'Motion & AI',
+        editorial: 'Editorial / Карьера'
+      };
+      const assignedCategory: any = category !== 'all' ? category : (idx % 2 === 0 ? 'branding' : 'typography');
+
+      return {
+        id: `trend-client-web-${Date.now()}-${idx}`,
+        title: source.title || `Практика из сети #${idx + 1}`,
+        category: assignedCategory,
+        categoryLabel: categoryLabelMap[assignedCategory] || 'Швейцарский дизайн',
+        source: `Парсер [${hostname}]`,
+        sourceUrl: source.url || url || undefined,
+        description: source.snippet || `Свежий материал по теме «${query || 'Швейцарский дизайн'}» для разбора и адаптации в портфолио начинающего дизайнера.`,
+        tags: [assignedCategory, 'WebRadar', 'LiveSearch', 'JuniorPortfolio'],
+        relevanceScore: 92 + (idx * 2) % 7,
+        keyTakeaway: `Разберите этот проект (${(source.title || '').slice(0, 40)}) в Figma и покажите в Reels/Stories логику модульной сетки 8px.`,
+        suggestedFormat: (idx % 2 === 0 ? 'carousel' : 'reels') as ContentFormat,
+        dateAdded: new Date().toISOString().split('T')[0]
+      };
+    });
+
+    return {
+      trends: webTrends,
+      live: false,
+      modelUsed: 'Web Scraper & Live Search',
+      webSources: cascadeRes.webSources,
+      telemetry: {
+        status: 200,
+        statusText: 'Web Grounded',
+        latencyMs: cascadeRes.latencyMs || 45,
+        tokens: 0,
+        provider: 'fallback',
+        model: 'Web Parser Engine',
+        live: false,
+        isFallback: true,
+        cascadeTriggered: cascadeRes.cascadeTriggered,
+        webGrounded: true,
+        message: `✓ Парсер успешно нашел веб-источники (${cascadeRes.webSources.length} шт.) и сформировал карточки трендов.`
+      }
+    };
+  }
+
+  // Fallback to Dynamic Swiss Generator
+  const timeHash = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const queryClean = query && !query.includes('Junior graphic design') ? query : '';
+
   return {
     trends: [
       {
         id: `trend-${Date.now()}-1`,
-        title: 'Разбор ошибок в сетке сайтов известных брендов (Figma 8px)',
-        category: 'branding',
-        categoryLabel: 'Брендинг',
-        source: 'Swiss Grid Design Lab 2026',
-        description: 'Демонстрация профессионализма начинающего дизайнера через исправление нарушенных отступов и выравнивание иерархии.',
-        tags: ['SwissGrid', 'JuniorPortfolio', 'Redesign', 'FigmaGuide'],
-        relevanceScore: 98,
-        keyTakeaway: 'Фокусируйтесь на логике: почему старый вариант вызывал когнитивную нагрузку и как сетка решила задачу.',
-        suggestedFormat: 'carousel',
+        title: queryClean 
+          ? `«${queryClean}»: разбор модульной сетки и композиции [${timeHash}]`
+          : `Анатомия швейцарского плаката: иерархия кеглей и сетка 8px [${timeHash}]`,
+        category: (category !== 'all' ? category : 'typography') as any,
+        categoryLabel: category === 'branding' ? 'Брендинг' : category === 'editorial' ? 'Editorial / Карьера' : 'Типографика',
+        source: 'Trend Radar Engine',
+        description: `Пошаговый разбор тренда ${queryClean ? `«${queryClean}»` : 'в швейцарском стиле'}: как начинающему дизайнеру исключить хаос отступов и выстроить четкий визуальный ритм.`,
+        tags: ['SwissGrid', '8pxRule', 'PortfolioCase', queryClean ? queryClean.split(' ')[0] : 'Typography'].filter(Boolean),
+        relevanceScore: 96,
+        keyTakeaway: 'Покажите направляющие модульной сетки в Figma поверх макета в первые 2 секунды ролика.',
+        suggestedFormat: 'carousel' as ContentFormat,
         dateAdded: new Date().toISOString().split('T')[0]
       },
       {
         id: `trend-${Date.now()}-2`,
-        title: 'Челлендж 20 минут: Плакат в стиле Баухаус под звук метронома',
-        category: 'motion',
-        categoryLabel: 'Motion & Reels',
-        source: 'TikTok #BauhausDesign',
-        description: 'Динамичный таймлапс с крупной типографикой и контрастными цветами, демонстрирующий уверенное владение композицией.',
-        tags: ['Bauhaus', 'Timelapse', 'PosterDesign', 'JuniorHacks'],
+        title: queryClean 
+          ? `Челлендж 20 минут: Редизайн по теме «${queryClean}» (До/После) [${timeHash}]`
+          : `Интерактивный квест в Stories: найди 3 ошибки в кернинге [${timeHash}]`,
+        category: (category !== 'all' ? category : 'branding') as any,
+        categoryLabel: 'Брендинг',
+        source: 'TikTok #DesignTok & Reels',
+        description: 'Демонстрация профессионального мышления новичка через исправление оптических неточностей реального макета.',
+        tags: ['BeforeAfter', 'Redesign', 'JuniorDesigner', 'ViralHook'],
         relevanceScore: 95,
-        keyTakeaway: 'Показывайте готовый результат в первой же секунде ролика, чтобы зацепить внимание зрителя.',
-        suggestedFormat: 'reels',
+        keyTakeaway: 'Начинайте с интригующего кадра: «Я не мог спокойно смотреть на это меню...»',
+        suggestedFormat: 'reels' as ContentFormat,
         dateAdded: new Date().toISOString().split('T')[0]
       },
       {
         id: `trend-${Date.now()}-3`,
-        title: '«Ищу работу в студии»: честный разбор отказов и пересборка портфолио',
-        category: 'editorial',
+        title: `«Ищу работу джуниором»: открытый разбор отказов и пересборка портфолио [${timeHash}]`,
+        category: (category !== 'all' ? category : 'editorial') as any,
         categoryLabel: 'Карьера / Editorial',
-        source: 'LinkedIn & Threads Viral Posts',
-        description: 'Сериал-дневник начинающего специалиста: открытый показ переписки с арт-директорами и эволюция кейсов.',
-        tags: ['BuildInPublic', 'CareerHunt', 'JuniorDesigner', 'ArtDirection'],
+        source: 'LinkedIn & Threads Discussions',
+        description: 'Открытый сериал-дневник начинающего дизайнера: показ переписки с арт-директорами и эволюция кейсов.',
+        tags: ['BuildInPublic', 'CareerHunt', 'JuniorPortfolio'],
         relevanceScore: 94,
-        keyTakeaway: 'Искренность и умение быстро учиться привлекают ведущие студии сильнее идеального кейса.',
-        suggestedFormat: 'thread',
+        keyTakeaway: 'Делитесь исходником Figma в закрепленном сообщении — это доказывает уверенность в решениях.',
+        suggestedFormat: 'thread' as ContentFormat,
         dateAdded: new Date().toISOString().split('T')[0]
       }
     ],
@@ -965,7 +1026,8 @@ export async function clientScanTrendsAI(
       tokens: 0,
       provider: 'fallback',
       model: 'swiss-local-safety-net',
-      live: false
+      live: false,
+      message: cascadeRes.error ? `Локальный радар. Причина: ${cascadeRes.error}` : 'Сформированы карточки трендов.'
     }
   };
 }
