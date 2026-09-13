@@ -125,9 +125,6 @@ export const INITIAL_SETTINGS: AppSettings = {
     { id: 'gemini-3.5-flash', name: '✨ Google Gemini 3.5 Flash (Баланс скорости и точности)' },
     { id: 'gemini-3.5-flash-lite', name: '✨ Google Gemini 3.5 Flash-Lite (Экономия квоты // Ультра-быстрый)' },
     { id: 'gemini-3.1-pro-preview', name: '✨ Google Gemini 3.1 Pro (Глубокий reasoning // Сложный контент)' },
-    { id: 'gemini-2.5-flash', name: '✨ Google Gemini 2.5 Flash (Стабильная версия 2.5 // Рекомендуемая)' },
-    { id: 'gemini-2.5-pro', name: '✨ Google Gemini 2.5 Pro (Продвинутая логика 2.5)' },
-    { id: 'gemini-2.5-flash-lite', name: '✨ Google Gemini 2.5 Flash-Lite (Легковесная 2.5)' },
 
     // OpenRouter (100% бесплатные модели / Free Tier / 0$ Prompt / 0$ Completion)
     { id: 'google/gemma-4-31b-it:free', name: '⚡️ Google Gemma 4 31B (OpenRouter Free // 262K контекст)' },
@@ -275,14 +272,14 @@ export function readLocalSettings(): AppSettings {
         !INITIAL_SETTINGS.availableModels.some(im => im.id === m.id) &&
         !m.id.includes('claude') &&
         !m.id.includes('gpt-4') &&
-        !m.id.includes('gemini-2.0')
+        !m.id.includes('gemini-2')
     );
     const availableModels = [
       ...INITIAL_SETTINGS.availableModels,
       ...customModels
     ];
     let defaultModel = parsed.defaultModel;
-    if (!defaultModel || defaultModel.includes('claude') || defaultModel.includes('gpt-4') || defaultModel.includes('gemini-2.0')) {
+    if (!defaultModel || defaultModel.includes('claude') || defaultModel.includes('gpt-4') || defaultModel.includes('gemini-2')) {
       defaultModel = INITIAL_SETTINGS.defaultModel;
     }
     return { ...INITIAL_SETTINGS, ...parsed, defaultModel, availableModels };

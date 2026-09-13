@@ -649,6 +649,222 @@ app.post('/api/ai/test-connection', async (req, res) => {
   });
 });
 
+// TEST SOCIAL NETWORK API CONNECTION
+app.post('/api/social/test', async (req, res) => {
+  const { channel, credentials = {} } = req.body;
+  const start = Date.now();
+
+  try {
+    switch (channel) {
+      case 'telegram': {
+        const botToken = credentials.telegramBotToken?.trim();
+        const chatId = credentials.telegramChatId?.trim();
+        if (!botToken) return res.json({ success: false, latencyMs: 0, message: 'Укажите Bot Token Telegram' });
+        
+        const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+        const meData = await meRes.json();
+        const latencyMs = Date.now() - start;
+        if (!meData.ok) {
+          return res.json({ success: false, latencyMs, message: `Ошибка Telegram API: ${meData.description || 'Неверный токен'}` });
+        }
+        const botUser = meData.result?.username ? `@${meData.result.username}` : (meData.result?.first_name || 'Bot');
+        
+        if (chatId) {
+          const chatRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${encodeURIComponent(chatId)}`);
+          const chatData = await chatRes.json();
+          if (!chatData.ok) {
+            return res.json({
+              success: true,
+              latencyMs,
+              message: `✓ Бот ${botUser} активен (${latencyMs}мс), но в чате ${chatId} бот не найден или не является админом`
+            });
+          }
+          const chatTitle = chatData.result?.title || chatData.result?.username || chatId;
+          return res.json({
+            success: true,
+            latencyMs,
+            message: `✓ Бот ${botUser} активен! Связь с «${chatTitle}» подтверждена (${latencyMs}мс)`
+          });
+        }
+        return res.json({
+          success: true,
+          latencyMs,
+          message: `✓ Бот ${botUser} успешно авторизован в Telegram (${latencyMs}мс)`
+        });
+      }
+
+      case 'bluesky': {
+        const identifier = credentials.blueskyIdentifier?.trim();
+        const password = credentials.blueskyAppPassword?.trim();
+        if (!identifier || !password) return res.json({ success: false, latencyMs: 0, message: 'Укажите Handle и App Password' });
+        
+        const bskyRes = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier, password })
+        });
+        const latencyMs = Date.now() - start;
+        const bskyData = await bskyRes.json();
+        if (bskyRes.ok && bskyData.did) {
+          return res.json({
+            success: true,
+            latencyMs,
+            message: `✓ Авторизация Bluesky успешна! Профиль @${bskyData.handle} (${bskyData.did.slice(0, 16)}...) подключен (${latencyMs}мс)`
+          });
+        }
+        return res.json({
+          success: false,
+          latencyMs,
+          message: `Ошибка Bluesky: ${bskyData.message || bskyData.error || 'Неверный логин или App Password'}`
+        });
+      }
+
+      case 'instagram': {
+        const token = credentials.instagramAccessToken?.trim();
+        if (!token) return res.json({ success: false, latencyMs: 0, message: 'Укажите Instagram Graph Token' });
+        
+        let igRes = await fetch(`https://graph.instagram.com/me?fields=id,username&access_token=${token}`);
+        let igData = await igRes.json();
+        if (!igRes.ok || igData.error) {
+          igRes = await fetch(`https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${token}`);
+          igData = await igRes.json();
+        }
+        const latencyMs = Date.now() - start;
+        if (igRes.ok && !igData.error) {
+          return res.json({
+            success: true,
+            latencyMs,
+            message: `✓ Instagram Graph API подтвержден! Аккаунт @${igData.username || igData.name || igData.id} (${latencyMs}мс)`
+          });
+        }
+        return res.json({
+          success: false,
+          latencyMs,
+          message: `Ошибка Instagram API: ${igData.error?.message || 'Недействительный токен'}`
+        });
+      }
+
+      case 'threads': {
+        const token = credentials.threadsAccessToken?.trim();
+        if (!token) return res.json({ success: false, latencyMs: 0, message: 'Укажите Threads Access Token' });
+        
+        const thRes = await fetch(`https://graph.threads.net/v1.0/me?fields=id,username&access_token=${token}`);
+        const thData = await thRes.json();
+        const latencyMs = Date.now() - start;
+        if (thRes.ok && !thData.error) {
+          return res.json({
+            success: true,
+            latencyMs,
+            message: `✓ Threads API подтвержден! Профиль @${thData.username || thData.id} (${latencyMs}мс)`
+          });
+        }
+        return res.json({
+          success: false,
+          latencyMs,
+          message: `Ошибка Threads API: ${thData.error?.message || 'Недействительный токен'}`
+        });
+      }
+
+      case 'tiktok': {
+        const token = credentials.tiktokAccessToken?.trim();
+        if (!token) return res.json({ success: false, latencyMs: 0, message: 'Укажите TikTok Access Token' });
+        
+        const ttRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const ttData = await ttRes.json();
+        const latencyMs = Date.now() - start;
+        if (ttRes.ok && ttData.data?.user) {
+          return res.json({
+            success: true,
+            latencyMs,
+            message: `✓ TikTok API подтвержден! Пользователь "${ttData.data.user.display_name || ttData.data.user.open_id}" (${latencyMs}мс)`
+          });
+        }
+        return res.json({
+          success: false,
+          latencyMs,
+          message: `Ошибка TikTok API: ${ttData.error?.message || ttData.message || 'Токен отклонен TikTok API'}`
+        });
+      }
+
+      case 'pinterest': {
+        const token = credentials.pinterestAccessToken?.trim();
+        if (!token) return res.json({ success: false, latencyMs: 0, message: 'Укажите Pinterest API Token' });
+        
+        const pinRes = await fetch('https://api.pinterest.com/v5/user_account', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const pinData = await pinRes.json();
+        const latencyMs = Date.now() - start;
+        if (pinRes.ok && pinData.username) {
+          return res.json({
+            success: true,
+            latencyMs,
+            message: `✓ Pinterest API подключен! Аккаунт @${pinData.username} (${pinData.account_type || 'Business'}) (${latencyMs}мс)`
+          });
+        }
+        return res.json({
+          success: false,
+          latencyMs,
+          message: `Ошибка Pinterest API: ${pinData.message || 'Неверный Pinterest токен'}`
+        });
+      }
+
+      case 'linkedin': {
+        const token = credentials.linkedinAccessToken?.trim();
+        if (!token) return res.json({ success: false, latencyMs: 0, message: 'Укажите LinkedIn Access Token' });
+        
+        const liRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const liData = await liRes.json();
+        const latencyMs = Date.now() - start;
+        if (liRes.ok && (liData.name || liData.sub)) {
+          return res.json({
+            success: true,
+            latencyMs,
+            message: `✓ LinkedIn токен активен! Профиль: ${liData.name || liData.email || liData.sub} (${latencyMs}мс)`
+          });
+        }
+        return res.json({
+          success: false,
+          latencyMs,
+          message: `Ошибка LinkedIn API: ${liData.message || 'Неверный токен доступа'}`
+        });
+      }
+
+      case 'twitter': {
+        const key = credentials.xApiKey?.trim();
+        if (!key) return res.json({ success: false, latencyMs: 0, message: 'Укажите X API Key / Bearer Token' });
+        
+        const xRes = await fetch('https://api.twitter.com/2/users/me', {
+          headers: { 'Authorization': `Bearer ${key}` }
+        });
+        const xData = await xRes.json();
+        const latencyMs = Date.now() - start;
+        if (xRes.ok && xData.data?.username) {
+          return res.json({
+            success: true,
+            latencyMs,
+            message: `✓ X API подключен! Аккаунт @${xData.data.username} (${xData.data.name}) (${latencyMs}мс)`
+          });
+        }
+        return res.json({
+          success: false,
+          latencyMs,
+          message: `Ошибка X API (${xRes.status}): ${xData.detail || xData.title || xData.errors?.[0]?.message || 'Токен не прошел авторизацию'}`
+        });
+      }
+
+      default:
+        return res.json({ success: false, latencyMs: 0, message: `Неизвестная сеть: ${channel}` });
+    }
+  } catch (err) {
+    return res.json({ success: false, latencyMs: Date.now() - start, message: `Ошибка проверки API: ${err.message}` });
+  }
+});
+
 // AI SCRIPT GENERATION (Dual-Provider Cascade: Gemini -> OpenRouter -> Local Fallback)
 app.post('/api/ai/generate-script', async (req, res) => {
   const {

@@ -9,6 +9,7 @@ import {
   exportDatabase,
   importDatabase
 } from '../../services/api.ts';
+import { testSocialApi, SocialTestResult } from '../../services/socialApi.ts';
 import { Key, Shield, Check, ExternalLink, Loader2, Terminal, Sparkles, RefreshCw, Database, Download, Upload } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -59,6 +60,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [geminiTestResult, setGeminiTestResult] = useState<AiTestConnectionResult | null>(null);
   const [openRouterTestResult, setOpenRouterTestResult] = useState<AiTestConnectionResult | null>(null);
   const [cascadeTestResult, setCascadeTestResult] = useState<AiTestConnectionResult | null>(null);
+
+  // Social network API testing state
+  const [testingSocial, setTestingSocial] = useState<Record<string, boolean>>({});
+  const [socialTestResults, setSocialTestResults] = useState<Record<string, SocialTestResult | null>>({});
+
+  const handleTestSocial = async (channel: string, credentials: Record<string, string>) => {
+    setTestingSocial(prev => ({ ...prev, [channel]: true }));
+    setSocialTestResults(prev => ({ ...prev, [channel]: null }));
+    try {
+      const res = await testSocialApi(channel, credentials);
+      setSocialTestResults(prev => ({ ...prev, [channel]: res }));
+    } catch (err: any) {
+      setSocialTestResults(prev => ({
+        ...prev,
+        [channel]: {
+          success: false,
+          latencyMs: 0,
+          message: err.message || 'Ошибка проверки соединения'
+        }
+      }));
+    } finally {
+      setTestingSocial(prev => ({ ...prev, [channel]: false }));
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -607,10 +632,54 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             {/* Section 2: Telegram */}
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', letterSpacing: '0.08em', marginBottom: '10px', textTransform: 'uppercase' }}>
-                02 // TELEGRAM BOT & CHANNEL
-              </h4>
+            <div style={{ marginBottom: '24px', border: '1px solid var(--border-medium)', padding: '16px', backgroundColor: 'var(--bg-surface-elevated)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
+                    02 // TELEGRAM BOT & CHANNEL
+                  </h4>
+                  {settings.hasTelegramKey && <span style={{ color: '#33cc66', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>[Ключ сохранен]</span>}
+                </div>
+                <button
+                  type="button"
+                  className="swiss-btn swiss-btn-sm"
+                  style={{ fontSize: '11px', borderColor: '#33cc66', color: '#33cc66' }}
+                  onClick={() => handleTestSocial('telegram', {
+                    telegramBotToken: formData.telegramBotToken || '',
+                    telegramChatId: formData.telegramChatId || ''
+                  })}
+                  disabled={testingSocial['telegram']}
+                >
+                  {testingSocial['telegram'] ? (
+                    <>
+                      <Loader2 size={12} className="spin" />
+                      ТЕСТ TELEGRAM...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={12} />
+                      ПРОВЕРИТЬ TELEGRAM API
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {socialTestResults['telegram'] && (
+                <div style={{
+                  marginBottom: '14px',
+                  padding: '10px 14px',
+                  backgroundColor: socialTestResults['telegram'].success ? '#0d1f12' : '#260e0e',
+                  border: `1px solid ${socialTestResults['telegram'].success ? '#33cc66' : '#ff4444'}`,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px'
+                }}>
+                  <div style={{ fontWeight: 800, color: socialTestResults['telegram'].success ? '#33cc66' : '#ff4444', marginBottom: '2px' }}>
+                    {socialTestResults['telegram'].success ? `✓ ПОДКЛЮЧЕНО (${socialTestResults['telegram'].latencyMs}мс)` : '✕ ОШИБКА ПОДКЛЮЧЕНИЯ К TELEGRAM'}
+                  </div>
+                  <div style={{ color: 'var(--text-primary)' }}>{socialTestResults['telegram'].message}</div>
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div className="swiss-form-group">
                   <label className="swiss-label">
@@ -619,7 +688,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <input 
                     type="password" 
                     className="swiss-input" 
-                    placeholder="123456789:ABCdefGHIjklMNO..."
+                    placeholder={settings.hasTelegramKey ? 'Оставьте пустым, чтобы не менять' : '123456789:ABCdefGHIjklMNO...'}
                     value={formData.telegramBotToken}
                     onChange={e => setFormData({ ...formData, telegramBotToken: e.target.value })}
                   />
@@ -638,10 +707,54 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             {/* Section 3: Bluesky */}
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', letterSpacing: '0.08em', marginBottom: '10px', textTransform: 'uppercase' }}>
-                03 // BLUESKY (ATPROTO)
-              </h4>
+            <div style={{ marginBottom: '24px', border: '1px solid var(--border-medium)', padding: '16px', backgroundColor: 'var(--bg-surface-elevated)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
+                    03 // BLUESKY (ATPROTO)
+                  </h4>
+                  {settings.hasBlueskyKey && <span style={{ color: '#33cc66', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>[Ключ сохранен]</span>}
+                </div>
+                <button
+                  type="button"
+                  className="swiss-btn swiss-btn-sm"
+                  style={{ fontSize: '11px', borderColor: '#33cc66', color: '#33cc66' }}
+                  onClick={() => handleTestSocial('bluesky', {
+                    blueskyIdentifier: formData.blueskyIdentifier || '',
+                    blueskyAppPassword: formData.blueskyAppPassword || ''
+                  })}
+                  disabled={testingSocial['bluesky']}
+                >
+                  {testingSocial['bluesky'] ? (
+                    <>
+                      <Loader2 size={12} className="spin" />
+                      ТЕСТ BLUESKY...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={12} />
+                      ПРОВЕРИТЬ BLUESKY API
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {socialTestResults['bluesky'] && (
+                <div style={{
+                  marginBottom: '14px',
+                  padding: '10px 14px',
+                  backgroundColor: socialTestResults['bluesky'].success ? '#0d1f12' : '#260e0e',
+                  border: `1px solid ${socialTestResults['bluesky'].success ? '#33cc66' : '#ff4444'}`,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px'
+                }}>
+                  <div style={{ fontWeight: 800, color: socialTestResults['bluesky'].success ? '#33cc66' : '#ff4444', marginBottom: '2px' }}>
+                    {socialTestResults['bluesky'].success ? `✓ ПОДКЛЮЧЕНО (${socialTestResults['bluesky'].latencyMs}мс)` : '✕ ОШИБКА ПОДКЛЮЧЕНИЯ К BLUESKY'}
+                  </div>
+                  <div style={{ color: 'var(--text-primary)' }}>{socialTestResults['bluesky'].message}</div>
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div className="swiss-form-group">
                   <label className="swiss-label">Handle / Identifier</label>
@@ -654,11 +767,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   />
                 </div>
                 <div className="swiss-form-group">
-                  <label className="swiss-label">App Password</label>
+                  <label className="swiss-label">
+                    App Password {settings.hasBlueskyKey && <span style={{ color: '#33cc66' }}>[Задан]</span>}
+                  </label>
                   <input 
                     type="password" 
                     className="swiss-input" 
-                    placeholder="xxxx-xxxx-xxxx-xxxx"
+                    placeholder={settings.hasBlueskyKey ? 'Оставьте пустым, чтобы не менять' : 'xxxx-xxxx-xxxx-xxxx'}
                     value={formData.blueskyAppPassword}
                     onChange={e => setFormData({ ...formData, blueskyAppPassword: e.target.value })}
                   />
@@ -667,79 +782,334 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             {/* Section 4: Instagram & Meta Threads */}
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', letterSpacing: '0.08em', marginBottom: '10px', textTransform: 'uppercase' }}>
-                04 // INSTAGRAM GRAPH API & THREADS
-              </h4>
+            <div style={{ marginBottom: '24px', border: '1px solid var(--border-medium)', padding: '16px', backgroundColor: 'var(--bg-surface-elevated)' }}>
+              <div style={{ marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
+                <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
+                  04 // META ECOSYSTEM (INSTAGRAM GRAPH & THREADS)
+                </h4>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div className="swiss-form-group">
-                  <label className="swiss-label">Instagram Graph Token</label>
-                  <input 
-                    type="password" 
-                    className="swiss-input" 
-                    placeholder="IG Token..."
-                    value={formData.instagramAccessToken}
-                    onChange={e => setFormData({ ...formData, instagramAccessToken: e.target.value })}
-                  />
+                {/* 04.A: INSTAGRAM */}
+                <div style={{ border: '1px solid var(--border-subtle)', padding: '12px', backgroundColor: 'var(--bg-surface)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700 }}>
+                      04.A // INSTAGRAM GRAPH API
+                    </span>
+                    <button
+                      type="button"
+                      className="swiss-btn swiss-btn-sm"
+                      style={{ fontSize: '10px', padding: '4px 8px' }}
+                      onClick={() => handleTestSocial('instagram', {
+                        instagramAccessToken: formData.instagramAccessToken || '',
+                        instagramAccountId: formData.instagramAccountId || ''
+                      })}
+                      disabled={testingSocial['instagram']}
+                    >
+                      {testingSocial['instagram'] ? <Loader2 size={10} className="spin" /> : <RefreshCw size={10} />}
+                      ПРОВЕРИТЬ INSTAGRAM
+                    </button>
+                  </div>
+
+                  {socialTestResults['instagram'] && (
+                    <div style={{
+                      marginBottom: '10px',
+                      padding: '8px 10px',
+                      backgroundColor: socialTestResults['instagram'].success ? '#0d1f12' : '#260e0e',
+                      border: `1px solid ${socialTestResults['instagram'].success ? '#33cc66' : '#ff4444'}`,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px'
+                    }}>
+                      <div style={{ fontWeight: 800, color: socialTestResults['instagram'].success ? '#33cc66' : '#ff4444' }}>
+                        {socialTestResults['instagram'].success ? `✓ ПОДКЛЮЧЕНО (${socialTestResults['instagram'].latencyMs}мс)` : '✕ ОШИБКА INSTAGRAM'}
+                      </div>
+                      <div style={{ color: 'var(--text-primary)', marginTop: '2px' }}>{socialTestResults['instagram'].message}</div>
+                    </div>
+                  )}
+
+                  <div className="swiss-form-group" style={{ marginBottom: '10px' }}>
+                    <label className="swiss-label" style={{ fontSize: '11px' }}>
+                      Instagram Graph Token {settings.hasInstagramKey && <span style={{ color: '#33cc66' }}>[Задан]</span>}
+                    </label>
+                    <input 
+                      type="password" 
+                      className="swiss-input" 
+                      placeholder={settings.hasInstagramKey ? 'Оставьте пустым, чтобы не менять' : 'EAAB... (User / Page Access Token)'}
+                      value={formData.instagramAccessToken}
+                      onChange={e => setFormData({ ...formData, instagramAccessToken: e.target.value })}
+                    />
+                  </div>
+                  <div className="swiss-form-group" style={{ marginBottom: 0 }}>
+                    <label className="swiss-label" style={{ fontSize: '11px' }}>Instagram Business Account ID (опционально)</label>
+                    <input 
+                      type="text" 
+                      className="swiss-input" 
+                      placeholder="17841400000000000"
+                      value={formData.instagramAccountId}
+                      onChange={e => setFormData({ ...formData, instagramAccountId: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="swiss-form-group">
-                  <label className="swiss-label">Threads Access Token</label>
-                  <input 
-                    type="password" 
-                    className="swiss-input" 
-                    placeholder="Threads Token..."
-                    value={formData.threadsAccessToken}
-                    onChange={e => setFormData({ ...formData, threadsAccessToken: e.target.value })}
-                  />
+
+                {/* 04.B: THREADS */}
+                <div style={{ border: '1px solid var(--border-subtle)', padding: '12px', backgroundColor: 'var(--bg-surface)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700 }}>
+                      04.B // META THREADS API
+                    </span>
+                    <button
+                      type="button"
+                      className="swiss-btn swiss-btn-sm"
+                      style={{ fontSize: '10px', padding: '4px 8px' }}
+                      onClick={() => handleTestSocial('threads', {
+                        threadsAccessToken: formData.threadsAccessToken || ''
+                      })}
+                      disabled={testingSocial['threads']}
+                    >
+                      {testingSocial['threads'] ? <Loader2 size={10} className="spin" /> : <RefreshCw size={10} />}
+                      ПРОВЕРИТЬ THREADS
+                    </button>
+                  </div>
+
+                  {socialTestResults['threads'] && (
+                    <div style={{
+                      marginBottom: '10px',
+                      padding: '8px 10px',
+                      backgroundColor: socialTestResults['threads'].success ? '#0d1f12' : '#260e0e',
+                      border: `1px solid ${socialTestResults['threads'].success ? '#33cc66' : '#ff4444'}`,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px'
+                    }}>
+                      <div style={{ fontWeight: 800, color: socialTestResults['threads'].success ? '#33cc66' : '#ff4444' }}>
+                        {socialTestResults['threads'].success ? `✓ ПОДКЛЮЧЕНО (${socialTestResults['threads'].latencyMs}мс)` : '✕ ОШИБКА THREADS'}
+                      </div>
+                      <div style={{ color: 'var(--text-primary)', marginTop: '2px' }}>{socialTestResults['threads'].message}</div>
+                    </div>
+                  )}
+
+                  <div className="swiss-form-group" style={{ marginBottom: 0 }}>
+                    <label className="swiss-label" style={{ fontSize: '11px' }}>
+                      Threads Access Token {settings.hasThreadsKey && <span style={{ color: '#33cc66' }}>[Задан]</span>}
+                    </label>
+                    <input 
+                      type="password" 
+                      className="swiss-input" 
+                      placeholder={settings.hasThreadsKey ? 'Оставьте пустым, чтобы не менять' : 'THQ... (Threads User Token)'}
+                      value={formData.threadsAccessToken}
+                      onChange={e => setFormData({ ...formData, threadsAccessToken: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Section 5: TikTok, Pinterest, LinkedIn & X */}
-            <div>
-              <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', letterSpacing: '0.08em', marginBottom: '10px', textTransform: 'uppercase' }}>
-                05 // TIKTOK, PINTEREST, LINKEDIN & X (TWITTER)
-              </h4>
+            <div style={{ marginBottom: '24px', border: '1px solid var(--border-medium)', padding: '16px', backgroundColor: 'var(--bg-surface-elevated)' }}>
+              <div style={{ marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
+                <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
+                  05 // TIKTOK, PINTEREST, LINKEDIN & X (TWITTER)
+                </h4>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div className="swiss-form-group">
-                  <label className="swiss-label">TikTok Creator API Token</label>
-                  <input 
-                    type="password" 
-                    className="swiss-input" 
-                    placeholder="TikTok Access Token..."
-                    value={formData.tiktokAccessToken}
-                    onChange={e => setFormData({ ...formData, tiktokAccessToken: e.target.value })}
-                  />
+                {/* 05.A: TikTok */}
+                <div style={{ border: '1px solid var(--border-subtle)', padding: '12px', backgroundColor: 'var(--bg-surface)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700 }}>
+                      05.A // TIKTOK CREATOR API
+                    </span>
+                    <button
+                      type="button"
+                      className="swiss-btn swiss-btn-sm"
+                      style={{ fontSize: '10px', padding: '4px 8px' }}
+                      onClick={() => handleTestSocial('tiktok', {
+                        tiktokAccessToken: formData.tiktokAccessToken || ''
+                      })}
+                      disabled={testingSocial['tiktok']}
+                    >
+                      {testingSocial['tiktok'] ? <Loader2 size={10} className="spin" /> : <RefreshCw size={10} />}
+                      ПРОВЕРИТЬ TIKTOK
+                    </button>
+                  </div>
+
+                  {socialTestResults['tiktok'] && (
+                    <div style={{
+                      marginBottom: '10px',
+                      padding: '8px 10px',
+                      backgroundColor: socialTestResults['tiktok'].success ? '#0d1f12' : '#260e0e',
+                      border: `1px solid ${socialTestResults['tiktok'].success ? '#33cc66' : '#ff4444'}`,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px'
+                    }}>
+                      <div style={{ fontWeight: 800, color: socialTestResults['tiktok'].success ? '#33cc66' : '#ff4444' }}>
+                        {socialTestResults['tiktok'].success ? `✓ ПОДКЛЮЧЕНО (${socialTestResults['tiktok'].latencyMs}мс)` : '✕ ОШИБКА TIKTOK'}
+                      </div>
+                      <div style={{ color: 'var(--text-primary)', marginTop: '2px' }}>{socialTestResults['tiktok'].message}</div>
+                    </div>
+                  )}
+
+                  <div className="swiss-form-group" style={{ marginBottom: 0 }}>
+                    <label className="swiss-label" style={{ fontSize: '11px' }}>
+                      TikTok Creator Token {settings.hasTikTokKey && <span style={{ color: '#33cc66' }}>[Задан]</span>}
+                    </label>
+                    <input 
+                      type="password" 
+                      className="swiss-input" 
+                      placeholder={settings.hasTikTokKey ? 'Оставьте пустым, чтобы не менять' : 'act.example...'}
+                      value={formData.tiktokAccessToken}
+                      onChange={e => setFormData({ ...formData, tiktokAccessToken: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="swiss-form-group">
-                  <label className="swiss-label">Pinterest API Token</label>
-                  <input 
-                    type="password" 
-                    className="swiss-input" 
-                    placeholder="Pinterest App Token..."
-                    value={formData.pinterestAccessToken}
-                    onChange={e => setFormData({ ...formData, pinterestAccessToken: e.target.value })}
-                  />
+
+                {/* 05.B: Pinterest */}
+                <div style={{ border: '1px solid var(--border-subtle)', padding: '12px', backgroundColor: 'var(--bg-surface)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700 }}>
+                      05.B // PINTEREST API
+                    </span>
+                    <button
+                      type="button"
+                      className="swiss-btn swiss-btn-sm"
+                      style={{ fontSize: '10px', padding: '4px 8px' }}
+                      onClick={() => handleTestSocial('pinterest', {
+                        pinterestAccessToken: formData.pinterestAccessToken || ''
+                      })}
+                      disabled={testingSocial['pinterest']}
+                    >
+                      {testingSocial['pinterest'] ? <Loader2 size={10} className="spin" /> : <RefreshCw size={10} />}
+                      ПРОВЕРИТЬ PINTEREST
+                    </button>
+                  </div>
+
+                  {socialTestResults['pinterest'] && (
+                    <div style={{
+                      marginBottom: '10px',
+                      padding: '8px 10px',
+                      backgroundColor: socialTestResults['pinterest'].success ? '#0d1f12' : '#260e0e',
+                      border: `1px solid ${socialTestResults['pinterest'].success ? '#33cc66' : '#ff4444'}`,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px'
+                    }}>
+                      <div style={{ fontWeight: 800, color: socialTestResults['pinterest'].success ? '#33cc66' : '#ff4444' }}>
+                        {socialTestResults['pinterest'].success ? `✓ ПОДКЛЮЧЕНО (${socialTestResults['pinterest'].latencyMs}мс)` : '✕ ОШИБКА PINTEREST'}
+                      </div>
+                      <div style={{ color: 'var(--text-primary)', marginTop: '2px' }}>{socialTestResults['pinterest'].message}</div>
+                    </div>
+                  )}
+
+                  <div className="swiss-form-group" style={{ marginBottom: 0 }}>
+                    <label className="swiss-label" style={{ fontSize: '11px' }}>
+                      Pinterest Token {settings.hasPinterestKey && <span style={{ color: '#33cc66' }}>[Задан]</span>}
+                    </label>
+                    <input 
+                      type="password" 
+                      className="swiss-input" 
+                      placeholder={settings.hasPinterestKey ? 'Оставьте пустым, чтобы не менять' : 'pina_...'}
+                      value={formData.pinterestAccessToken}
+                      onChange={e => setFormData({ ...formData, pinterestAccessToken: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="swiss-form-group">
-                  <label className="swiss-label">LinkedIn Marketing API Token</label>
-                  <input 
-                    type="password" 
-                    className="swiss-input" 
-                    placeholder="LinkedIn Token..."
-                    value={formData.linkedinAccessToken}
-                    onChange={e => setFormData({ ...formData, linkedinAccessToken: e.target.value })}
-                  />
+
+                {/* 05.C: LinkedIn */}
+                <div style={{ border: '1px solid var(--border-subtle)', padding: '12px', backgroundColor: 'var(--bg-surface)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700 }}>
+                      05.C // LINKEDIN MARKETING API
+                    </span>
+                    <button
+                      type="button"
+                      className="swiss-btn swiss-btn-sm"
+                      style={{ fontSize: '10px', padding: '4px 8px' }}
+                      onClick={() => handleTestSocial('linkedin', {
+                        linkedinAccessToken: formData.linkedinAccessToken || ''
+                      })}
+                      disabled={testingSocial['linkedin']}
+                    >
+                      {testingSocial['linkedin'] ? <Loader2 size={10} className="spin" /> : <RefreshCw size={10} />}
+                      ПРОВЕРИТЬ LINKEDIN
+                    </button>
+                  </div>
+
+                  {socialTestResults['linkedin'] && (
+                    <div style={{
+                      marginBottom: '10px',
+                      padding: '8px 10px',
+                      backgroundColor: socialTestResults['linkedin'].success ? '#0d1f12' : '#260e0e',
+                      border: `1px solid ${socialTestResults['linkedin'].success ? '#33cc66' : '#ff4444'}`,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px'
+                    }}>
+                      <div style={{ fontWeight: 800, color: socialTestResults['linkedin'].success ? '#33cc66' : '#ff4444' }}>
+                        {socialTestResults['linkedin'].success ? `✓ ПОДКЛЮЧЕНО (${socialTestResults['linkedin'].latencyMs}мс)` : '✕ ОШИБКА LINKEDIN'}
+                      </div>
+                      <div style={{ color: 'var(--text-primary)', marginTop: '2px' }}>{socialTestResults['linkedin'].message}</div>
+                    </div>
+                  )}
+
+                  <div className="swiss-form-group" style={{ marginBottom: 0 }}>
+                    <label className="swiss-label" style={{ fontSize: '11px' }}>
+                      LinkedIn Token {settings.hasLinkedInKey && <span style={{ color: '#33cc66' }}>[Задан]</span>}
+                    </label>
+                    <input 
+                      type="password" 
+                      className="swiss-input" 
+                      placeholder={settings.hasLinkedInKey ? 'Оставьте пустым, чтобы не менять' : 'AQV...'}
+                      value={formData.linkedinAccessToken}
+                      onChange={e => setFormData({ ...formData, linkedinAccessToken: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="swiss-form-group">
-                  <label className="swiss-label">X API Key</label>
-                  <input 
-                    type="password" 
-                    className="swiss-input" 
-                    placeholder="X API Key..."
-                    value={formData.xApiKey}
-                    onChange={e => setFormData({ ...formData, xApiKey: e.target.value })}
-                  />
+
+                {/* 05.D: X (Twitter) */}
+                <div style={{ border: '1px solid var(--border-subtle)', padding: '12px', backgroundColor: 'var(--bg-surface)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700 }}>
+                      05.D // X (TWITTER) API
+                    </span>
+                    <button
+                      type="button"
+                      className="swiss-btn swiss-btn-sm"
+                      style={{ fontSize: '10px', padding: '4px 8px' }}
+                      onClick={() => handleTestSocial('twitter', {
+                        xApiKey: formData.xApiKey || formData.xAccessToken || ''
+                      })}
+                      disabled={testingSocial['twitter']}
+                    >
+                      {testingSocial['twitter'] ? <Loader2 size={10} className="spin" /> : <RefreshCw size={10} />}
+                      ПРОВЕРИТЬ X
+                    </button>
+                  </div>
+
+                  {socialTestResults['twitter'] && (
+                    <div style={{
+                      marginBottom: '10px',
+                      padding: '8px 10px',
+                      backgroundColor: socialTestResults['twitter'].success ? '#0d1f12' : '#260e0e',
+                      border: `1px solid ${socialTestResults['twitter'].success ? '#33cc66' : '#ff4444'}`,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px'
+                    }}>
+                      <div style={{ fontWeight: 800, color: socialTestResults['twitter'].success ? '#33cc66' : '#ff4444' }}>
+                        {socialTestResults['twitter'].success ? `✓ ПОДКЛЮЧЕНО (${socialTestResults['twitter'].latencyMs}мс)` : '✕ ОШИБКА X'}
+                      </div>
+                      <div style={{ color: 'var(--text-primary)', marginTop: '2px' }}>{socialTestResults['twitter'].message}</div>
+                    </div>
+                  )}
+
+                  <div className="swiss-form-group" style={{ marginBottom: 0 }}>
+                    <label className="swiss-label" style={{ fontSize: '11px' }}>
+                      X API Key / Bearer Token {settings.hasXKey && <span style={{ color: '#33cc66' }}>[Задан]</span>}
+                    </label>
+                    <input 
+                      type="password" 
+                      className="swiss-input" 
+                      placeholder={settings.hasXKey ? 'Оставьте пустым, чтобы не менять' : 'AAAAAAAAAAAA...'}
+                      value={formData.xApiKey}
+                      onChange={e => setFormData({ ...formData, xApiKey: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

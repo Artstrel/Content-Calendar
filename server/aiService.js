@@ -189,7 +189,7 @@ export function robustExtractTrendsJson(rawText) {
 }
 
 /**
- * Call Google Gemini API (gemini-3.8-flash / gemini-2.5-flash)
+ * Call Google Gemini API (gemini-3.8-flash)
  * Uses native responseMimeType: 'application/json' for guaranteed valid JSON.
  */
 export async function callGemini({

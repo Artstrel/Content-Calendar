@@ -377,7 +377,7 @@ export async function clientCallOpenRouter({
 export async function clientTestGeminiConnection(apiKey?: string, model?: string): Promise<AiTestConnectionResult> {
   const settings = readLocalSettings();
   const effectiveKey = apiKey || settings.geminiApiKey;
-  const effectiveModel = model || settings.defaultGeminiModel || settings.defaultModel || 'gemini-2.5-flash';
+  const effectiveModel = model || settings.defaultGeminiModel || settings.defaultModel || 'gemini-3.8-flash';
 
   if (!effectiveKey) {
     return {
