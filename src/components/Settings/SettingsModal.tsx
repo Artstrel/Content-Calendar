@@ -900,6 +900,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     />
                   </div>
                 </div>
+
+                {/* Meta App Review Helper Box */}
+                <div style={{ 
+                  marginTop: '12px', 
+                  padding: '10px 14px', 
+                  backgroundColor: 'var(--bg-primary)', 
+                  border: '1px solid var(--border-medium)',
+                  borderLeft: '3px solid #33cc66',
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-mono)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>
+                      META APP REVIEW & DEVELOPER URLS (INSTAGRAM / THREADS):
+                    </strong>
+                    <a 
+                      href="/legal.html" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ color: '#33cc66', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <ExternalLink size={11} />
+                      ОТКРЫТЬ СТРАНИЦУ
+                    </a>
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    Для прохождения модерации в Meta for Developers укажите в настройках приложения:<br />
+                    • Privacy Policy URL: <code>{typeof window !== 'undefined' ? window.location.origin : ''}/legal.html#privacy</code><br />
+                    • Terms of Service URL: <code>{typeof window !== 'undefined' ? window.location.origin : ''}/legal.html#terms</code><br />
+                    • Data Deletion URL: <code>{typeof window !== 'undefined' ? window.location.origin : ''}/legal.html#deletion</code>
+                  </div>
+                </div>
               </div>
             </div>
 

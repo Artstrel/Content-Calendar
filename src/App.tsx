@@ -16,6 +16,7 @@ import { PostListView } from './components/ListView/PostListView.tsx';
 import { AnalyticsDashboard } from './components/Analytics/AnalyticsDashboard.tsx';
 import { PostModal } from './components/PostEditor/PostModal.tsx';
 import { SettingsModal } from './components/Settings/SettingsModal.tsx';
+import { LegalPage } from './components/Legal/LegalPage.tsx';
 import './styles/swiss.css';
 
 export const App: React.FC = () => {
@@ -55,6 +56,17 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     loadData();
+
+    // Check URL hash for direct legal / privacy / terms routes
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase().replace('#', '');
+      if (['legal', 'privacy', 'terms', 'tos', 'deletion', 'data-deletion', 'compliance'].includes(hash)) {
+        setCurrentView('legal');
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
   }, []);
 
   // Filter posts by search query and channel
@@ -264,9 +276,83 @@ export const App: React.FC = () => {
                 }}
               />
             )}
+
+            {currentView === 'legal' && (
+              <LegalPage 
+                onBackToApp={() => setCurrentView('calendar')}
+              />
+            )}
           </>
         )}
       </main>
+
+      {/* Global Swiss Footer */}
+      <footer className="swiss-app-footer">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ 
+            display: 'inline-block', 
+            width: '6px', 
+            height: '6px', 
+            backgroundColor: '#33cc66', 
+            borderRadius: '50%' 
+          }} />
+          <span>KRAFTWERK // SWISS CONTENT ENGINE v1.4.0</span>
+          <span>•</span>
+          <span>LOCAL-FIRST ARCHITECTURE</span>
+        </div>
+
+        <div className="swiss-app-footer-links">
+          <button 
+            className="swiss-footer-link" 
+            onClick={() => {
+              window.location.hash = 'terms';
+              setCurrentView('legal');
+            }}
+          >
+            УСЛОВИЯ (TOS)
+          </button>
+          <span>•</span>
+          <button 
+            className="swiss-footer-link" 
+            onClick={() => {
+              window.location.hash = 'privacy';
+              setCurrentView('legal');
+            }}
+          >
+            ПРИВАТНОСТЬ (PRIVACY)
+          </button>
+          <span>•</span>
+          <button 
+            className="swiss-footer-link" 
+            onClick={() => {
+              window.location.hash = 'deletion';
+              setCurrentView('legal');
+            }}
+          >
+            УДАЛЕНИЕ ДАННЫХ
+          </button>
+          <span>•</span>
+          <button 
+            className="swiss-footer-link" 
+            onClick={() => {
+              window.location.hash = 'compliance';
+              setCurrentView('legal');
+            }}
+          >
+            META REVIEW & API
+          </button>
+          <span>•</span>
+          <a 
+            href="/legal.html" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="swiss-footer-link"
+            title="Открыть автономную статическую страницу"
+          >
+            PUBLIC URL ↗
+          </a>
+        </div>
+      </footer>
 
       {/* Post Editor Studio Modal */}
       {isPostModalOpen && editingPost && (

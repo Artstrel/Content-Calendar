@@ -7,11 +7,12 @@ import {
   Plus, 
   Settings as SettingsIcon,
   Search,
-  BarChart3
+  BarChart3,
+  Shield
 } from 'lucide-react';
 import { Platform } from '../types/index.ts';
 
-export type ViewType = 'trends' | 'calendar' | 'kanban' | 'list' | 'analytics';
+export type ViewType = 'trends' | 'calendar' | 'kanban' | 'list' | 'analytics' | 'legal';
 
 interface HeaderProps {
   currentView: ViewType;
@@ -134,6 +135,14 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <BarChart3 size={15} />
             05 // ТРЕКИНГ И СТАТИСТИКА
+          </button>
+          <button 
+            className={`swiss-view-tab ${currentView === 'legal' ? 'active' : ''}`}
+            onClick={() => onViewChange('legal')}
+            title="Условия использования и политика приватности (ToS & Privacy Policy)"
+          >
+            <Shield size={15} />
+            06 // TOS & PRIVACY
           </button>
         </div>
       </div>

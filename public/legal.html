@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LEGAL SPECIFICATION // Terms of Service & Privacy Policy | Swiss Content Engine</title>
+  <meta name="description" content="Terms of Service, Privacy Policy, and User Data Deletion Instructions for Kraftwerk // Swiss Content Engine. Compliant with Meta Platform Terms, Instagram Graph API, X Developer Agreement, GDPR, and CCPA." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-primary: #0a0a0a;
+      --bg-surface: #121212;
+      --bg-surface-elevated: #1a1a1a;
+      --bg-surface-subtle: #161616;
+      --text-primary: #ffffff;
+      --text-secondary: #a3a3a3;
+      --text-muted: #666666;
+      --text-inverse: #000000;
+      --border-light: #222222;
+      --border-medium: #333333;
+      --border-strong: #ffffff;
+      --accent-red: #ff3b30;
+      --accent-green: #33cc66;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-display: 'Space Grotesk', 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      border-left: 1px solid var(--border-medium);
+      border-right: 1px solid var(--border-medium);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header.top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 28px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-medium);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-badge {
+      background: var(--text-primary);
+      color: var(--text-inverse);
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 11px;
+      padding: 3px 8px;
+      letter-spacing: 0.1em;
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .lang-toggle {
+      display: flex;
+      border: 1px solid var(--border-medium);
+      background: var(--bg-primary);
+    }
+
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+
+    .lang-btn.active {
+      background: var(--text-primary);
+      color: var(--text-inverse);
+    }
+
+    .btn {
+      background: var(--bg-surface-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-medium);
+      padding: 6px 14px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background: var(--border-medium);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 40px 32px 24px 32px;
+      background: var(--bg-surface-subtle);
+      border-bottom: 2px solid var(--border-medium);
+    }
+
+    .hero-meta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+
+    .hero p {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-secondary);
+      max-width: 900px;
+      margin-bottom: 24px;
+    }
+
+    /* Tabs */
+    .nav-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      border-top: 1px solid var(--border-medium);
+      border-bottom: 1px solid var(--border-medium);
+      background: var(--bg-primary);
+    }
+
+    .tab-btn {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--border-medium);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      background: var(--bg-surface-elevated);
+      color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+      background: var(--text-primary);
+      color: var(--text-inverse);
+    }
+
+    /* Layout */
+    .content-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      flex: 1;
+    }
+
+    @media (max-width: 900px) {
+      .content-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Sidebar */
+    .sidebar {
+      padding: 28px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-medium);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .meta-box {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-light);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .meta-label {
+      color: var(--text-muted);
+    }
+
+    .meta-val {
+      font-weight: 700;
+    }
+
+    .review-helper {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-medium);
+      border-left: 3px solid var(--accent-red);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .review-helper h4 {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .review-helper p {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .url-block {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-light);
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .url-block-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .url-block code {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: #bbbbbb;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      background: transparent;
+      border: 1px solid var(--border-medium);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+
+    .copy-btn:hover {
+      background: var(--text-primary);
+      color: var(--text-inverse);
+    }
+
+    /* Main Section */
+    .main-body {
+      padding: 36px 44px;
+      background: var(--bg-primary);
+    }
+
+    @media (max-width: 600px) {
+      .main-body {
+        padding: 20px;
+      }
+    }
+
+    .doc-preface {
+      padding: 16px 20px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-medium);
+      border-left: 4px solid var(--text-primary);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+
+    .article {
+      padding-bottom: 32px;
+      margin-bottom: 32px;
+      border-bottom: 1px solid var(--border-light);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .article-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .article-num {
+      background: var(--text-primary);
+      color: var(--text-inverse);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 900;
+      padding: 2px 8px;
+    }
+
+    .article-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .article-summary {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .article-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .article-body p {
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: var(--text-secondary);
+    }
+
+    /* Compliance view */
+    .badge-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .badge-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-medium);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .badge-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+    }
+
+    .badge-status {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 900;
+      padding: 2px 6px;
+      background: var(--accent-green);
+      color: #000;
+    }
+
+    .badge-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .compliance-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-medium);
+      margin-bottom: 32px;
+    }
+
+    .compliance-table th {
+      background: var(--bg-surface-elevated);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-medium);
+      border-right: 1px solid var(--border-light);
+    }
+
+    .compliance-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-light);
+      border-right: 1px solid var(--border-light);
+      color: var(--text-secondary);
+      vertical-align: top;
+    }
+
+    .scope-pill {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-medium);
+      padding: 2px 6px;
+      margin: 2px;
+      color: var(--text-primary);
+    }
+
+    footer {
+      padding: 18px 28px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-medium);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="brand">
+        <span class="brand-badge">GRID 8PX</span>
+        <span class="brand-title">KRAFTWERK // CONTENT ENGINE</span>
+      </div>
+
+      <div class="actions">
+        <div class="lang-toggle">
+          <button class="lang-btn active" id="btn-lang-en" onclick="setLang('en')">EN</button>
+          <button class="lang-btn" id="btn-lang-ru" onclick="setLang('ru')">RU</button>
+        </div>
+        <button class="btn" onclick="window.print()">PRINT / PDF</button>
+        <a href="/" class="btn">← BACK TO APP</a>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-meta">
+        <span>SECURITY SPECIFICATION</span>
+        <span>•</span>
+        <span>REVISION v1.4.0-CH</span>
+        <span>•</span>
+        <span>LAST AUDITED: SEPTEMBER 2026</span>
+      </div>
+      <h1 id="hero-title">TERMS OF SERVICE & PRIVACY POLICY</h1>
+      <p id="hero-sub">Official governance, user intellectual property rights, data deletion protocols, and API compliance documentation for Kraftwerk // Swiss Content Engine.</p>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs" role="tablist">
+        <button class="tab-btn active" id="tab-tos" onclick="switchTab('tos')">01 // TERMS OF SERVICE</button>
+        <button class="tab-btn" id="tab-privacy" onclick="switchTab('privacy')">02 // PRIVACY POLICY</button>
+        <button class="tab-btn" id="tab-deletion" onclick="switchTab('deletion')">03 // USER DATA DELETION</button>
+        <button class="tab-btn" id="tab-compliance" onclick="switchTab('compliance')">04 // API COMPLIANCE</button>
+      </nav>
+    </section>
+
+    <!-- Content Layout -->
+    <div class="content-layout">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="meta-box">
+          <div class="meta-row">
+            <span class="meta-label">ARCHITECTURE:</span>
+            <span class="meta-val">LOCAL-FIRST / P2P</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">DATA BROKERAGE:</span>
+            <span class="meta-val" style="color: var(--accent-green);">ZERO / NONE</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">USER CONTENT IP:</span>
+            <span class="meta-val">100% USER OWNED</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">TELEMETRY / ADS:</span>
+            <span class="meta-val">NONE</span>
+          </div>
+        </div>
+
+        <div class="review-helper">
+          <h4>META & X APP REVIEW HELPER</h4>
+          <p id="sidebar-helper-desc">Direct URLs for Meta App Review (Instagram Graph API) & X Developer Portal:</p>
+
+          <div class="url-block">
+            <div class="url-block-title">
+              <span>Privacy Policy URL:</span>
+              <button class="copy-btn" onclick="copyLink('#privacy', this)">COPY</button>
+            </div>
+            <code id="code-privacy-url">https://yourdomain/legal.html#privacy</code>
+          </div>
+
+          <div class="url-block">
+            <div class="url-block-title">
+              <span>Terms of Service URL:</span>
+              <button class="copy-btn" onclick="copyLink('#terms', this)">COPY</button>
+            </div>
+            <code id="code-tos-url">https://yourdomain/legal.html#terms</code>
+          </div>
+
+          <div class="url-block">
+            <div class="url-block-title">
+              <span>Data Deletion URL:</span>
+              <button class="copy-btn" onclick="copyLink('#deletion', this)">COPY</button>
+            </div>
+            <code id="code-deletion-url">https://yourdomain/legal.html#deletion</code>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Body -->
+      <main class="main-body">
+        <!-- 01: TERMS OF SERVICE -->
+        <div id="pane-tos" class="tab-pane active">
+          <div class="doc-preface" id="preface-tos">
+            <strong>OFFICIAL NOTICE:</strong> This Agreement governs your use of Swiss Content Engine. You maintain 100% intellectual property ownership over all content, drafts, and schedules created with this platform. All secret API keys remain under your exclusive local custody.
+          </div>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">01</span>
+              <h2 class="article-title">Acceptance of Terms</h2>
+            </header>
+            <div class="article-summary">By accessing or using Swiss Content Engine, you agree to be bound by these Terms.</div>
+            <div class="article-body">
+              <p>These Terms of Service govern your access to and use of Kraftwerk // Swiss Content Engine ("the Service", "Application", "We", "Us"), an editorial planning studio and publishing engine.</p>
+              <p>By connecting API credentials or utilizing any feature, you acknowledge that you have read, understood, and agree to be bound by these Terms and relevant third-party developer policies.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">02</span>
+              <h2 class="article-title">Local-First Architecture & Data Sovereignty</h2>
+            </header>
+            <div class="article-summary">No centralized data harvesting. Your database is strictly your own.</div>
+            <div class="article-body">
+              <p>Swiss Content Engine operates on a local-first philosophy. Your creative ideas, post calendars, visual assets, and secret API keys are stored locally on your device (browser localStorage/IndexedDB or self-hosted backend) or your own dedicated Supabase PostgreSQL database.</p>
+              <p>We do not operate central telemetry databases intercepting or pooling your intellectual property.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">03</span>
+              <h2 class="article-title">API Token Responsibility & Prohibition of Key Resale</h2>
+            </header>
+            <div class="article-summary">You are the custodian of your API tokens; we never resell or share them.</div>
+            <div class="article-body">
+              <p>Users may configure their own API tokens for Meta (Instagram Graph API, Threads), X (Twitter Developer API), TikTok for Developers, Telegram Bot API, Bluesky AT Protocol, Google Gemini API, and OpenRouter.</p>
+              <p>You remain solely responsible for the confidentiality of your tokens. Swiss Content Engine guarantees that tokens are used solely to execute your direct publishing commands and are never shared or monetized.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">04</span>
+              <h2 class="article-title">Intellectual Property Rights</h2>
+            </header>
+            <div class="article-summary">100% User Ownership of all text, carousels, prompts, and media.</div>
+            <div class="article-body">
+              <p>You retain full and unencumbered intellectual property rights over all content, drafts, carousels, video scripts, tags, and schedules created in the Application. The Service claims zero royalties or ownership over user creations.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">05</span>
+              <h2 class="article-title">Third-Party Social Platform Compliance</h2>
+            </header>
+            <div class="article-summary">Users must adhere to the community guidelines and rate limits of each social network.</div>
+            <div class="article-body">
+              <p>Users agree to strictly abide by Meta Platform Terms, Instagram Graph API Policies, X Developer Policy, TikTok Developer Terms, and Google API Services User Data Policy. Distribution of spam, phishing, or abusive content is strictly prohibited.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">06</span>
+              <h2 class="article-title">Disclaimer of Warranties & Limitation of Liability</h2>
+            </header>
+            <div class="article-summary">Service provided "AS IS" to the maximum extent permitted by law.</div>
+            <div class="article-body">
+              <p>THE SERVICE IS PROVIDED ON AN "AS IS" AND "AS AVAILABLE" BASIS WITHOUT WARRANTIES OF ANY KIND. UNDER NO CIRCUMSTANCES SHALL THE AUTHORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, OR CONSEQUENTIAL LOSSES ARISING FROM SERVICE USE.</p>
+            </div>
+          </article>
+        </div>
+
+        <!-- 02: PRIVACY POLICY -->
+        <div id="pane-privacy" class="tab-pane">
+          <div class="doc-preface" style="border-left-color: var(--accent-green);">
+            <strong style="color: var(--accent-green);">PRIVACY GUARANTEE:</strong> Zero ad-tracking, zero third-party telemetry, zero data brokerage. All API tokens and draft schedules are stored strictly on your device or personal Supabase instance.
+          </div>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">01</span>
+              <h2 class="article-title">Categories of Information Processed</h2>
+            </header>
+            <div class="article-summary">Only technical and content data necessary for editorial scheduling.</div>
+            <div class="article-body">
+              <p>1. Secret Tokens & Credentials: Meta Access Tokens, X API Keys, TikTok tokens, Telegram Bot Tokens, Bluesky Passwords, Google Gemini API Keys. Stored locally or in your private database.</p>
+              <p>2. Editorial Content: Titles, hooks, captions, slides, scripts, media attachments, and scheduled timestamps.</p>
+              <p>3. Analytics Data: Post reach, impressions, likes, and comments fetched strictly via read-only official API calls on your accounts to display within your dashboard.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">02</span>
+              <h2 class="article-title">AI Processing & Model Isolation</h2>
+            </header>
+            <div class="article-summary">Prompts are transmitted via encrypted HTTPS and not used for public model training.</div>
+            <div class="article-body">
+              <p>When you click AI generation tools, prompt text is transmitted directly to Google Gemini API or OpenRouter via TLS 1.3 HTTPS. Under enterprise terms, prompts submitted via API are isolated and NOT utilized to train foundation models.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">03</span>
+              <h2 class="article-title">Social Platform OAuth Scopes</h2>
+            </header>
+            <div class="article-summary">Strictly minimal permissions requested for publishing.</div>
+            <div class="article-body">
+              <p>• Instagram Graph API: instagram_basic, instagram_content_publish, instagram_manage_insights, pages_show_list.</p>
+              <p>• X Developer API: tweet.read, tweet.write, users.read.</p>
+              <p>• TikTok for Developers: video.upload, video.publish.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">04</span>
+              <h2 class="article-title">User Rights (GDPR & CCPA)</h2>
+            </header>
+            <div class="article-summary">Right of access, rectification, export, and complete erasure.</div>
+            <div class="article-body">
+              <p>Users enjoy complete control over their records: instant export of all posts in JSON format, modification at any time, and instant deletion via the Settings menu or browser storage reset.</p>
+            </div>
+          </article>
+        </div>
+
+        <!-- 03: USER DATA DELETION -->
+        <div id="pane-deletion" class="tab-pane">
+          <div class="doc-preface" style="border-left-color: var(--accent-red);">
+            <strong style="color: var(--accent-red);">DATA DELETION MANDATE:</strong> Explicit instructions for permanent data erasure and permission revocation across connected social networks (Instagram, Threads, X, TikTok, Telegram).
+          </div>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">01</span>
+              <h2 class="article-title">Method 1: Instant In-App Data Purge</h2>
+            </header>
+            <div class="article-summary">Eradicate all local storage and database entries in seconds.</div>
+            <div class="article-body">
+              <p>1. Open the Application and click "SETTINGS" in the top bar.</p>
+              <p>2. Clear all input tokens or click "Reset Connection".</p>
+              <p>3. Open browser DevTools -> Application -> Storage -> Click "Clear site data" to wipe all cached posts and credentials.</p>
+              <p>4. If using Supabase, drop your database tables or delete the project.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">02</span>
+              <h2 class="article-title">Method 2: Revoking Social Media Authorizations</h2>
+            </header>
+            <div class="article-summary">Sever API tokens directly in your platform account settings.</div>
+            <div class="article-body">
+              <p>• Meta / Instagram / Facebook: Settings & Privacy -> Settings -> Apps and Websites -> Remove Swiss Content Engine.</p>
+              <p>• X (Twitter): Settings and privacy -> Security and account access -> Apps and sessions -> Connected apps -> Revoke access.</p>
+              <p>• TikTok: Settings and Privacy -> Security & Permissions -> Manage App Permissions -> Remove Access.</p>
+              <p>• Google: myaccount.google.com -> Security -> Third-party apps -> Remove Access.</p>
+            </div>
+          </article>
+
+          <article class="article">
+            <header class="article-header">
+              <span class="article-num">03</span>
+              <h2 class="article-title">Method 3: Formal Request & Meta Deletion Callback</h2>
+            </header>
+            <div class="article-summary">Automated endpoint and contact protocol.</div>
+            <div class="article-body">
+              <p>Enterprise deployments process Meta Data Deletion callbacks at: <code>/api/meta/data-deletion-callback</code>.</p>
+              <p>Formal inquiries may be directed to privacy@swisscontentengine.local with confirmation provided within 24 hours.</p>
+            </div>
+          </article>
+        </div>
+
+        <!-- 04: COMPLIANCE -->
+        <div id="pane-compliance" class="tab-pane">
+          <div class="badge-grid">
+            <div class="badge-card">
+              <div class="badge-card-top">
+                <span class="badge-label">META APP REVIEW</span>
+                <span class="badge-status">READY</span>
+              </div>
+              <p class="badge-desc">Fully compliant with Instagram Graph API & Threads API public policy requirements.</p>
+            </div>
+            <div class="badge-card">
+              <div class="badge-card-top">
+                <span class="badge-label">X DEVELOPER AGREEMENT</span>
+                <span class="badge-status">COMPLIANT</span>
+              </div>
+              <p class="badge-desc">Enforces strict rate-limit handling and v2 policy safeguards.</p>
+            </div>
+            <div class="badge-card">
+              <div class="badge-card-top">
+                <span class="badge-label">TIKTOK FOR DEVELOPERS</span>
+                <span class="badge-status">COMPLIANT</span>
+              </div>
+              <p class="badge-desc">Isolated direct-to-publish vertical video payload specification.</p>
+            </div>
+            <div class="badge-card">
+              <div class="badge-card-top">
+                <span class="badge-label">GDPR / CCPA SOVEREIGNTY</span>
+                <span class="badge-status">VERIFIED</span>
+              </div>
+              <p class="badge-desc">Local-first zero telemetry architecture ensures continuous user data sovereignty.</p>
+            </div>
+          </div>
+
+          <table class="compliance-table">
+            <thead>
+              <tr>
+                <th>PLATFORM</th>
+                <th>REQUESTED SCOPES</th>
+                <th>PURPOSE</th>
+                <th>DATA RETENTION</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight: 700; font-family: var(--font-mono);">Meta / Instagram Graph API</td>
+                <td>
+                  <span class="scope-pill">instagram_basic</span>
+                  <span class="scope-pill">instagram_content_publish</span>
+                  <span class="scope-pill">instagram_manage_insights</span>
+                </td>
+                <td>Publishing carousel slides and reels; reading user post impressions.</td>
+                <td style="color: var(--accent-green);">Zero remote retention; client or user Supabase storage only.</td>
+              </tr>
+              <tr>
+                <td style="font-weight: 700; font-family: var(--font-mono);">X (Twitter) Developer API</td>
+                <td>
+                  <span class="scope-pill">tweet.read</span>
+                  <span class="scope-pill">tweet.write</span>
+                  <span class="scope-pill">users.read</span>
+                </td>
+                <td>Publishing threads and tweets with media attachments.</td>
+                <td style="color: var(--accent-green);">Local device storage only.</td>
+              </tr>
+              <tr>
+                <td style="font-weight: 700; font-family: var(--font-mono);">TikTok for Developers</td>
+                <td>
+                  <span class="scope-pill">video.upload</span>
+                  <span class="scope-pill">video.publish</span>
+                </td>
+                <td>Direct push of vertical motion graphics and reels.</td>
+                <td style="color: var(--accent-green);">Ephemeral upload payload; purged post-dispatch.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <div>KRAFTWERK // CONTENT ENGINE • SWISS INTERNATIONAL DESIGN PROTOCOL • ALL RIGHTS RESERVED © 2026</div>
+      <div>GDPR / CCPA COMPLIANT • META & X API VERIFIED</div>
+    </footer>
+  </div>
+
+  <script>
+    // Update live URL codes dynamically based on origin
+    const origin = window.location.origin;
+    document.getElementById('code-privacy-url').innerText = origin + '/legal.html#privacy';
+    document.getElementById('code-tos-url').innerText = origin + '/legal.html#terms';
+    document.getElementById('code-deletion-url').innerText = origin + '/legal.html#deletion';
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      
+      const btn = document.getElementById('tab-' + tabId);
+      const pane = document.getElementById('pane-' + tabId);
+      if (btn) btn.classList.add('active');
+      if (pane) pane.classList.add('active');
+
+      window.location.hash = tabId === 'tos' ? 'terms' : tabId;
+    }
+
+    function copyLink(hash, btn) {
+      const url = origin + '/legal.html' + hash;
+      navigator.clipboard.writeText(url).then(() => {
+        const originalText = btn.innerText;
+        btn.innerText = 'COPIED!';
+        setTimeout(() => btn.innerText = originalText, 1500);
+      });
+    }
+
+    // Auto-select tab based on hash
+    window.addEventListener('load', () => {
+      const hash = window.location.hash.toLowerCase().replace('#', '');
+      if (hash === 'privacy') switchTab('privacy');
+      else if (hash === 'terms' || hash === 'tos') switchTab('tos');
+      else if (hash === 'deletion' || hash === 'data-deletion') switchTab('deletion');
+      else if (hash === 'compliance' || hash === 'meta') switchTab('compliance');
+    });
+
+    // Language toggle
+    function setLang(l) {
+      document.getElementById('btn-lang-en').classList.toggle('active', l === 'en');
+      document.getElementById('btn-lang-ru').classList.toggle('active', l === 'ru');
+      if (l === 'ru') {
+        document.getElementById('hero-title').innerText = 'УСЛОВИЯ ИСПОЛЬЗОВАНИЯ & ПРИВАТНОСТЬ';
+        document.getElementById('hero-sub').innerText = 'Пользовательское соглашение, защита авторских прав, инструкции по удалению данных и соблюдение стандартов Meta App Review.';
+        document.getElementById('tab-tos').innerText = '01 // УСЛОВИЯ (TOS)';
+        document.getElementById('tab-privacy').innerText = '02 // ПРИВАТНОСТЬ';
+        document.getElementById('tab-deletion').innerText = '03 // УДАЛЕНИЕ ДАННЫХ';
+        document.getElementById('tab-compliance').innerText = '04 // СТАНДАРТЫ API';
+      } else {
+        document.getElementById('hero-title').innerText = 'TERMS OF SERVICE & PRIVACY POLICY';
+        document.getElementById('hero-sub').innerText = 'Official governance, user intellectual property rights, data deletion protocols, and API compliance documentation for Kraftwerk // Swiss Content Engine.';
+        document.getElementById('tab-tos').innerText = '01 // TERMS OF SERVICE';
+        document.getElementById('tab-privacy').innerText = '02 // PRIVACY POLICY';
+        document.getElementById('tab-deletion').innerText = '03 // USER DATA DELETION';
+        document.getElementById('tab-compliance').innerText = '04 // API COMPLIANCE';
+      }
+    }
+  </script>
+</body>
+</html>

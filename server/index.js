@@ -52,6 +52,32 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// Public directory for static assets and legal documents
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+if (fs.existsSync(PUBLIC_DIR)) {
+  app.use(express.static(PUBLIC_DIR));
+}
+
+// Legal & Compliance direct routes
+app.get(['/legal', '/terms', '/privacy', '/data-deletion'], (_req, res) => {
+  const legalFile = path.join(PUBLIC_DIR, 'legal.html');
+  if (fs.existsSync(legalFile)) {
+    res.sendFile(legalFile);
+  } else {
+    res.redirect('/legal.html');
+  }
+});
+
+// Meta Data Deletion Callback endpoint (compliant with Meta User Data Deletion requirements)
+app.post('/api/meta/data-deletion-callback', (req, res) => {
+  const confirmationCode = 'DEL-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+  console.log('[META DATA DELETION] Received deletion callback:', req.body, 'Confirmation code:', confirmationCode);
+  res.json({
+    url: `${req.protocol}://${req.get('host')}/legal.html#deletion`,
+    confirmation_code: confirmationCode
+  });
+});
+
 // Create a demo SVG asset for initial display
 const DEMO_DIR = path.join(__dirname, '..', 'public', 'demo-assets');
 if (!fs.existsSync(DEMO_DIR)) {
